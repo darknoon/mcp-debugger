@@ -32,3 +32,14 @@ Commands:
 ```
 uv run python -m harness.cli fix astropy__astropy-12907
 ```
+
+
+### Demo
+
+```
+cd demo
+claude
+```
+
+Tell claude:
+> let's use the debugger mcp to hit the race condition in the program

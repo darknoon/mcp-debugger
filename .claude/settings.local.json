@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bun --hot run src/index.ts)"
+      "Bash(bun --hot run src/index.ts)",
+      "WebFetch(domain:microsoft.github.io)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

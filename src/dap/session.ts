@@ -1,0 +1,91 @@
+import { EventEmitter } from "node:events";
+import { Transport } from "./transport";
+import { Request, Response, Event, DapMessage } from "./types";
+
+let sessionCounter = 0;
+
+export interface PendingReq<T = any> {
+  resolve: (v: T) => void;
+  reject: (e: Error) => void;
+  command: string;
+}
+
+export class DapSession extends EventEmitter {
+  readonly id: string;
+  private seq = 1;
+  private pending = new Map<number, PendingReq<any>>();
+  private events: Event[] = [];
+
+  constructor(private transport: Transport) {
+    super();
+    this.id = `s${++sessionCounter}`;
+    this.transport.on("message", (m: DapMessage) => this.onMessage(m));
+    this.transport.on("stderr", (s: string) => this.emit("stderr", s));
+    this.transport.on("exit", (info: { code: number }) =>
+      this.emit("exit", info),
+    );
+  }
+
+  private onMessage(m: DapMessage) {
+    if (m.type === "response") {
+      const response = m as Response;
+      const p = this.pending.get(response.request_seq);
+      if (p) {
+        this.pending.delete(response.request_seq);
+        if (response.success) p.resolve(response.body ?? {});
+        else
+          p.reject(new Error(response.message || `DAP error for ${p.command}`));
+      }
+      return;
+    }
+    if (m.type === "event") {
+      const event = m as Event;
+      this.events.push(event);
+      this.emit("event", event);
+      return;
+    }
+  }
+
+  request<T = any>(command: string, args?: any): Promise<T> {
+    const request_seq = this.seq++;
+    const req: Request = {
+      seq: request_seq,
+      type: "request",
+      command: command as any,
+      arguments: args,
+    };
+    return new Promise<T>((resolve, reject) => {
+      this.pending.set(request_seq, { resolve, reject, command });
+      this.transport.send(req);
+    });
+  }
+
+  readEvents(
+    since: number = 0,
+    limit: number = 100,
+  ): { events: Event[]; nextSeq: number } {
+    const slice = this.events.slice(since, since + limit);
+    return { events: slice, nextSeq: since + slice.length };
+  }
+
+  close(): void {
+    this.transport.close();
+  }
+}
+
+export class SessionRegistry {
+  private sessions = new Map<string, DapSession>();
+
+  add(sess: DapSession): void {
+    this.sessions.set(sess.id, sess);
+  }
+  get(id: string): DapSession | undefined {
+    return this.sessions.get(id);
+  }
+  delete(id: string): void {
+    this.sessions.delete(id);
+  }
+  list(): string[] {
+    return Array.from(this.sessions.keys());
+  }
+}

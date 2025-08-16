@@ -28,3 +28,9 @@ Commands:
     }
     },
 ```
+
+### Evaluate
+
+```
+uv run python -m harness.cli fix astropy__astropy-12907
+```

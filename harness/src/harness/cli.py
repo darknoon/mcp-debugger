@@ -3,6 +3,7 @@
 import click
 import json
 import sys
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -94,8 +95,6 @@ def fix(instance_id: str, dataset: str, output: Optional[str], temp_dir: Optiona
             click.echo(f"Instance ID: {result['instance_id']}")
             click.echo(f"Success: {result['success']}")
             click.echo(f"Patch Applied: {result['patch_applied']}")
-            click.echo(f"Tests Passed Before: {result['tests_passed_before']}")
-            click.echo(f"Tests Passed After: {result['tests_passed_after']}")
 
             if result.get("error"):
                 click.echo(f"Error: {result['error']}")
@@ -207,6 +206,55 @@ def fix_all(
     click.echo(f"Failed: {summary['failed']}")
     click.echo(f"Success Rate: {summary['successful'] / summary['total'] * 100:.1f}%")
     click.echo(f"Results saved to: {output_path}")
+
+
+@main.command()
+@click.option(
+    "--predictions-path",
+    "-p",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to predictions JSONL file",
+)
+@click.option(
+    "--dataset",
+    "-d",
+    default="princeton-nlp/SWE-bench_Lite",
+    help="SWE-bench dataset to use for evaluation",
+)
+def evaluate(predictions_path: str, dataset: str):
+    """Run local SWE-bench evaluation on predictions."""
+    
+    click.echo(f"Running evaluation on {predictions_path} with dataset {dataset}")
+    
+    try:
+        # Run the swebench evaluation
+        cmd = [
+            sys.executable,
+            "-m",
+            "swebench.harness.run_evaluation",
+            "--dataset_name",
+            dataset,
+            "--predictions_path",
+            predictions_path,
+        ]
+        
+        click.echo(f"Running: {' '.join(cmd)}")
+        result = subprocess.run(cmd, check=True)
+        
+        if result.returncode == 0:
+            click.echo("Evaluation completed successfully!")
+            click.echo("Results saved in evaluation_results/ directory")
+        else:
+            click.echo("Evaluation failed!", err=True)
+            sys.exit(1)
+            
+    except subprocess.CalledProcessError as e:
+        click.echo(f"Evaluation failed with error: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Unexpected error: {e}", err=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

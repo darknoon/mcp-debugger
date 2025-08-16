@@ -3,7 +3,7 @@
 import subprocess
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List
 
 
 class IssueFixer:
@@ -13,50 +13,6 @@ class IssueFixer:
         """Initialize the fixer with a repository path."""
         self.repo_path = repo_path
         self.original_cwd = os.getcwd()
-    
-    def run_tests(self, test_command: Optional[str] = None) -> Tuple[bool, str]:
-        """
-        Run tests in the repository.
-        
-        Args:
-            test_command: Optional custom test command
-            
-        Returns:
-            Tuple of (success, output)
-        """
-        os.chdir(self.repo_path)
-        
-        try:
-            if test_command:
-                cmd = test_command
-            else:
-                # Try common test commands
-                if (self.repo_path / "pytest.ini").exists() or (self.repo_path / "setup.cfg").exists():
-                    cmd = "python -m pytest"
-                elif (self.repo_path / "manage.py").exists():
-                    cmd = "python manage.py test"
-                elif (self.repo_path / "tox.ini").exists():
-                    cmd = "tox"
-                else:
-                    cmd = "python -m pytest"
-            
-            print(f"Running tests: {cmd}")
-            result = subprocess.run(
-                cmd, 
-                shell=True, 
-                capture_output=True, 
-                text=True,
-                timeout=300  # 5 minute timeout
-            )
-            
-            return result.returncode == 0, result.stdout + result.stderr
-            
-        except subprocess.TimeoutExpired:
-            return False, "Test execution timed out"
-        except Exception as e:
-            return False, f"Error running tests: {str(e)}"
-        finally:
-            os.chdir(self.original_cwd)
     
     def apply_patch(self, patch_content: str) -> bool:
         """
@@ -99,29 +55,63 @@ class IssueFixer:
         finally:
             os.chdir(self.original_cwd)
     
-    def create_simple_fix(self, problem_statement: str, files_to_edit: List[str]) -> Optional[str]:
+    def run_claude_code_fix(self, problem_statement: str) -> Optional[str]:
         """
-        Create a simple fix based on the problem statement.
-        This is a placeholder for more sophisticated fixing logic.
+        Run Claude Code non-interactively to fix the issue.
         
         Args:
-            problem_statement: Description of the issue
-            files_to_edit: List of files that might need editing
+            problem_statement: Description of the issue to fix
             
         Returns:
-            Patch content or None if no fix could be generated
+            Generated patch content or None if fix failed
         """
-        print("Analyzing problem statement...")
-        print(f"Problem: {problem_statement}")
-        print(f"Files to consider: {files_to_edit}")
+        os.chdir(self.repo_path)
         
-        # This is a placeholder - in a real implementation, you might:
-        # 1. Use static analysis to understand the code
-        # 2. Apply LLM-based code generation
-        # 3. Use pattern matching for common bug types
-        # 4. Implement specific fixes for known issue patterns
-        
-        return None
+        try:
+            print("Running Claude Code to generate fix...")
+            
+            # Run claude code with the problem statement
+            cmd = [
+                "claude", 
+                "--print",
+                "--model", "sonnet",
+                f"Fix this issue: {problem_statement}. Generate a patch for the changes."
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=600  # 10 minute timeout
+            )
+            
+            if result.returncode == 0:
+                print("Claude Code completed successfully")
+                
+                # Try to get the git diff as the patch
+                diff_result = subprocess.run(
+                    ["git", "diff"],
+                    capture_output=True,
+                    text=True
+                )
+                
+                if diff_result.returncode == 0 and diff_result.stdout.strip():
+                    return diff_result.stdout
+                else:
+                    print("No changes detected after Claude Code run")
+                    return None
+            else:
+                print(f"Claude Code failed: {result.stderr}")
+                return None
+                
+        except subprocess.TimeoutExpired:
+            print("Claude Code execution timed out")
+            return None
+        except Exception as e:
+            print(f"Error running Claude Code: {str(e)}")
+            return None
+        finally:
+            os.chdir(self.original_cwd)
     
     def fix_issue(self, example: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -137,56 +127,35 @@ class IssueFixer:
             "instance_id": example["instance_id"],
             "success": False,
             "patch_applied": False,
-            "tests_passed_before": False,
-            "tests_passed_after": False,
+            "model_patch": "",
             "error": None,
             "output": ""
         }
         
         try:
-            # Run initial tests
-            print("Running initial tests...")
-            tests_pass, test_output = self.run_tests(example.get("test_cmd"))
-            result["tests_passed_before"] = tests_pass
-            result["output"] += f"Initial tests: {'PASSED' if tests_pass else 'FAILED'}\\n"
-            result["output"] += test_output + "\\n"
+            # First apply test patch to set up the environment
+            print("Applying test patch...")
+            test_patch_applied = self.apply_patch(example["test_patch"])
             
-            # If we have a reference patch, try applying it
-            if "patch" in example:
-                print("Applying reference patch...")
-                patch_applied = self.apply_patch(example["patch"])
-                result["patch_applied"] = patch_applied
+            if not test_patch_applied:
+                result["error"] = "Failed to apply test patch"
+                return result
+            
+            # Now run Claude Code to generate the actual fix
+            problem_statement = example.get("problem_statement", "")
+            if not problem_statement:
+                result["error"] = "No problem statement provided"
+                return result
                 
-                if patch_applied:
-                    # Run tests after patch
-                    print("Running tests after patch...")
-                    tests_pass_after, test_output_after = self.run_tests(example.get("test_cmd"))
-                    result["tests_passed_after"] = tests_pass_after
-                    result["output"] += f"Tests after patch: {'PASSED' if tests_pass_after else 'FAILED'}\\n"
-                    result["output"] += test_output_after + "\\n"
-                    result["success"] = tests_pass_after
-                else:
-                    result["error"] = "Failed to apply reference patch"
+            model_patch = self.run_claude_code_fix(problem_statement)
+            
+            if model_patch:
+                result["model_patch"] = model_patch
+                result["patch_applied"] = True
+                result["success"] = True
+                print("Successfully generated fix with Claude Code")
             else:
-                # Try to create a simple fix
-                problem_statement = example.get("problem_statement", "")
-                files_to_edit = example.get("hints_text", "").split() if "hints_text" in example else []
-                
-                patch = self.create_simple_fix(problem_statement, files_to_edit)
-                if patch:
-                    patch_applied = self.apply_patch(patch)
-                    result["patch_applied"] = patch_applied
-                    
-                    if patch_applied:
-                        tests_pass_after, test_output_after = self.run_tests(example.get("test_cmd"))
-                        result["tests_passed_after"] = tests_pass_after
-                        result["output"] += f"Tests after fix: {'PASSED' if tests_pass_after else 'FAILED'}\\n"
-                        result["output"] += test_output_after + "\\n"
-                        result["success"] = tests_pass_after
-                    else:
-                        result["error"] = "Failed to apply generated patch"
-                else:
-                    result["error"] = "Could not generate a fix for this issue"
+                result["error"] = "Claude Code failed to generate a fix"
                     
         except Exception as e:
             result["error"] = f"Exception during fixing: {str(e)}"

@@ -8,6 +8,18 @@ import { DapSession } from "../dap/session";
 
 server.tool(
   "debuggerRun",
+  `
+This starts the built-in debugger, which currently supports Python projects. Use this instead of Bash() or your built-in Shell tools, when wanting to execute the Python project.
+
+A typical flow might look like:
+- debuggerRun
+- [any debuggerSetBreakpoints you'd like]
+- debuggerContinue <-- starts the process
+- debuggerWaitUntilBreakpoint
+
+You can also use a non-blocking version of "debuggerWaitUntilBreakpoint" named "debuggerStatus," which
+has additional info too. This is useful if you wanna go do other things :0
+`,
   {
     args: z
       .array(z.string())
@@ -18,7 +30,9 @@ server.tool(
     cwd: z
       .string()
       .optional()
-      .describe("Working directory for the Python process"),
+      .describe(
+        "Working directory for the Python process, requires you to have UV & debugpy installed in that directory's UV venv. If you leave this blank it'll use the demo project which has these.",
+      ),
   },
   async ({ args = [], cwd }) => {
     // Get a free port for debugpy
@@ -44,17 +58,29 @@ server.tool(
     });
 
     // Store stdout/stderr buffers temporarily until session is created
-    const tempLogs: { type: "stdout" | "stderr"; timestamp: number; data: string }[] = [];
-    
+    const tempLogs: {
+      type: "stdout" | "stderr";
+      timestamp: number;
+      data: string;
+    }[] = [];
+
     // Handle process output
     pythonProcess.stdout?.on("data", (data) => {
-      const log = { type: "stdout" as const, timestamp: Date.now(), data: data.toString() };
+      const log = {
+        type: "stdout" as const,
+        timestamp: Date.now(),
+        data: data.toString(),
+      };
       tempLogs.push(log);
       console.error(`[debugpy stdout]: ${data.toString()}`);
     });
 
     pythonProcess.stderr?.on("data", (data) => {
-      const log = { type: "stderr" as const, timestamp: Date.now(), data: data.toString() };
+      const log = {
+        type: "stderr" as const,
+        timestamp: Date.now(),
+        data: data.toString(),
+      };
       tempLogs.push(log);
       console.error(`[debugpy stderr]: ${data.toString()}`);
     });
@@ -106,20 +132,28 @@ server.tool(
     sess.pythonProcess = pythonProcess;
     // Store the cwd for relative path resolution in breakpoint commands
     sess.cwd = cwd || process.cwd();
-    
+
     // Transfer temp logs to session and set up continuous logging
     sess.processLogs = tempLogs;
-    
+
     // Replace the listeners to log to session instead of temp array
     pythonProcess.stdout?.removeAllListeners("data");
     pythonProcess.stdout?.on("data", (data) => {
-      sess.processLogs.push({ type: "stdout", timestamp: Date.now(), data: data.toString() });
+      sess.processLogs.push({
+        type: "stdout",
+        timestamp: Date.now(),
+        data: data.toString(),
+      });
       console.error(`[debugpy stdout]: ${data.toString()}`);
     });
-    
+
     pythonProcess.stderr?.removeAllListeners("data");
     pythonProcess.stderr?.on("data", (data) => {
-      sess.processLogs.push({ type: "stderr", timestamp: Date.now(), data: data.toString() });
+      sess.processLogs.push({
+        type: "stderr",
+        timestamp: Date.now(),
+        data: data.toString(),
+      });
       console.error(`[debugpy stderr]: ${data.toString()}`);
     });
 
@@ -151,7 +185,6 @@ server.tool(
       });
 
     return jsonContent({
-      instructions: "<todo>",
       sessionId: sess.id,
     });
   },

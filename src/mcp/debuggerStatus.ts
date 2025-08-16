@@ -42,6 +42,7 @@ server.tool(
 
           const stackTraceResponse = await session.request("stackTrace", {
             threadId,
+            startFrame: 0,
             levels: 20,
           });
           status.stackTrace = stackTraceResponse.stackFrames;

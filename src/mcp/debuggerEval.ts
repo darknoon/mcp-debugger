@@ -38,6 +38,7 @@ server.tool(
           try {
             const stackTraceResponse = await session.request("stackTrace", {
               threadId,
+              startFrame: 0,
               levels: 1,
             });
             targetFrameId = stackTraceResponse.stackFrames[0]?.id;

@@ -1,0 +1,19 @@
+[project]
+name = "harness"
+version = "0.1.0"
+description = "SWE-bench issue fixing harness"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "datasets>=2.14.0",
+    "gitpython>=3.1.0",
+    "click>=8.1.0",
+    "requests>=2.31.0",
+    "typing-extensions>=4.5.0",
+]
+
+[project.scripts]
+swe-harness = "harness.cli:main"
+
+[tool.uv]
+package = true

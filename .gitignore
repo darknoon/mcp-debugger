@@ -1,1 +1,6 @@
 node_modules/
+
+*.pyc
+*.pyo
+
+harness/src/harness.egg-info/

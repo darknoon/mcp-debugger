@@ -3,7 +3,12 @@
     "allow": [
       "Bash(bun --hot run src/index.ts)",
       "WebFetch(domain:microsoft.github.io)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(for:*)",
+      "Bash(do grep -l \"Session ${sessionId} not found\" \"$file\")",
+      "Bash(done)",
+      "Bash(do)",
+      "Bash(sed:*)"
     ],
     "deny": [],
     "ask": []

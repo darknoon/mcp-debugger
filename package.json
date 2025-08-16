@@ -13,9 +13,11 @@
   "license": "ISC",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.3",
+    "get-port": "^7.1.0",
     "zod": "^3.25.x"
   },
   "devDependencies": {
+    "@types/bun": "^1.2.20",
     "@types/node": "^24.3.0",
     "typescript": "^5.9.2"
   },

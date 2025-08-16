@@ -32,14 +32,14 @@ export class TcpTransport extends EventEmitter implements Transport {
     );
 
     this.reader.on("message", (m: DapMessage) => {
-      console.log("RECV:" + JSON.stringify(m, null, 2));
+      console.error("RECV:" + JSON.stringify(m, null, 2));
       this.emit("message", m);
     });
     this.reader.on("error", (e) => this.emit("error", e));
   }
 
   send(msg: DapMessage): void {
-    console.log("SEND:" + JSON.stringify(msg, null, 2));
+    console.error("SEND:" + JSON.stringify(msg, null, 2));
     const buf = this.writer.write(msg);
     this.socket.write(buf);
   }

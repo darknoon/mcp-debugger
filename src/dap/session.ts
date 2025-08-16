@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { ChildProcess } from "child_process";
 import { Transport } from "./transport";
 import { Request, Response, Event, DapMessage } from "./types";
 
@@ -12,6 +13,12 @@ export interface PendingReq<T = any> {
 
 export class DapSession extends EventEmitter {
   readonly id: string;
+
+  started: boolean = false;
+  pythonProcess?: ChildProcess;
+  processLogs: { type: "stdout" | "stderr"; timestamp: number; data: string }[] = [];
+  cwd?: string;
+
   private seq = 1;
   private pending = new Map<number, PendingReq<any>>();
   private events: Event[] = [];
@@ -69,21 +76,45 @@ export class DapSession extends EventEmitter {
   }
 
   close(): void {
+    // Terminate the Python process if it exists
+    if (this.pythonProcess) {
+      this.pythonProcess.kill();
+      this.pythonProcess = undefined;
+    }
     this.transport.close();
   }
 }
 
 export class SessionRegistry {
   private sessions = new Map<string, DapSession>();
+  private lastSessionId: string | null = null;
 
   add(sess: DapSession): void {
     this.sessions.set(sess.id, sess);
+    this.lastSessionId = sess.id;
   }
   get(id: string): DapSession | undefined {
     return this.sessions.get(id);
   }
+  getLastOrSpecific(id?: string): DapSession | undefined {
+    if (id) {
+      return this.sessions.get(id);
+    }
+    if (this.lastSessionId) {
+      return this.sessions.get(this.lastSessionId);
+    }
+    // If no last session, try to get any existing session
+    const sessionIds = this.list();
+    if (sessionIds.length > 0) {
+      return this.sessions.get(sessionIds[sessionIds.length - 1]);
+    }
+    return undefined;
+  }
   delete(id: string): void {
     this.sessions.delete(id);
+    if (this.lastSessionId === id) {
+      this.lastSessionId = null;
+    }
   }
   list(): string[] {
     return Array.from(this.sessions.keys());

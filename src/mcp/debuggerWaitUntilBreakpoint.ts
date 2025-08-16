@@ -4,11 +4,14 @@ import { jsonContent, server, sessions } from "./server";
 
 server.tool(
   "debuggerWaitUntilBreakpoint",
+  `MUST BE CALLED AFTER debuggerContinue. At least, make sure the process is running. Waits until a breakpoint, or returns immediately if already stopped.`,
   {
     sessionId: z
       .string()
       .optional()
-      .describe("The session ID of the debugger session (uses last session if not provided)"),
+      .describe(
+        "The session ID of the debugger session (uses last session if not provided)",
+      ),
     timeout: z
       .number()
       .default(30000)
@@ -16,113 +19,137 @@ server.tool(
   },
   async ({ sessionId, timeout }) => {
     const session = sessions.getLastOrSpecific(sessionId);
-    
+
     if (!session) {
-      throw new Error(sessionId ? `Session ${sessionId} not found` : "No active debug session");
+      throw new Error(
+        sessionId
+          ? `Session ${sessionId} not found`
+          : "No active debug session",
+      );
     }
 
     const startTime = Date.now();
     const checkInterval = 100;
-    
-    // First check if we're already in a stopped state
-    const allEvents = session.readEvents(0, 10000).events;
-    
-    // Find the last stopped and continued events by searching from the end
-    let lastStoppedEvent = null;
-    let lastStoppedIndex = -1;
-    let lastContinuedEvent = null;
-    let lastContinuedIndex = -1;
-    
-    for (let i = allEvents.length - 1; i >= 0; i--) {
-      if (!lastStoppedEvent && allEvents[i].event === "stopped") {
-        lastStoppedEvent = allEvents[i];
-        lastStoppedIndex = i;
+
+    // Helper function to check if the debugger is currently stopped
+    const isCurrentlyStopped = () => {
+      const allEvents = session.readEvents(0, 10000).events;
+
+      // Find the last stopped and continued events
+      let lastStoppedEvent = null;
+      let lastStoppedIndex = -1;
+      let lastContinuedEvent = null;
+      let lastContinuedIndex = -1;
+
+      for (let i = allEvents.length - 1; i >= 0; i--) {
+        const event = allEvents[i];
+        if (!lastStoppedEvent && event.event === "stopped") {
+          lastStoppedEvent = event;
+          lastStoppedIndex = i;
+        }
+        if (!lastContinuedEvent && event.event === "continued") {
+          lastContinuedEvent = event;
+          lastContinuedIndex = i;
+        }
+        if (lastStoppedEvent && lastContinuedEvent) break;
       }
-      if (!lastContinuedEvent && allEvents[i].event === "continued") {
-        lastContinuedEvent = allEvents[i];
-        lastContinuedIndex = i;
+
+      // Check for terminated event as well
+      const hasTerminated = allEvents.some((e) => e.event === "terminated");
+      if (hasTerminated) {
+        return { stopped: true, reason: "terminated", event: null };
       }
-      if (lastStoppedEvent && lastContinuedEvent) break;
-    }
-    
-    // If we have a stopped event and either no continued event, or the stopped event came after the continued event
-    const isCurrentlyStopped = lastStoppedEvent && (!lastContinuedEvent || lastStoppedIndex > lastContinuedIndex);
-    
-    if (isCurrentlyStopped && lastStoppedEvent && lastStoppedEvent.body) {
-      const stoppedBody = lastStoppedEvent.body as any;
-      // Return immediately with the current stopped state
+
+      // If we have a stopped event and either no continued event, or the stopped event came after
+      const isStopped =
+        lastStoppedEvent &&
+        (!lastContinuedEvent || lastStoppedIndex > lastContinuedIndex);
+
+      return {
+        stopped: isStopped,
+        event: isStopped ? lastStoppedEvent : null,
+      };
+    };
+
+    // Check if already stopped
+    const currentState = isCurrentlyStopped();
+    if (currentState.stopped) {
+      if (currentState.reason === "terminated") {
+        return jsonContent({
+          success: true,
+          reason: "terminated",
+          elapsed: 0,
+          description: "Program has terminated",
+          alreadyStopped: true,
+        });
+      }
+
+      const stoppedBody = currentState.event?.body as any;
       return jsonContent({
         success: true,
-        reason: stoppedBody.reason || "stopped",
+        reason: stoppedBody?.reason || "stopped",
         elapsed: 0,
-        threadId: stoppedBody.threadId,
-        hitBreakpointIds: stoppedBody.hitBreakpointIds,
-        description: stoppedBody.description || `Already stopped due to: ${stoppedBody.reason}`,
+        threadId: stoppedBody?.threadId,
+        hitBreakpointIds: stoppedBody?.hitBreakpointIds,
+        description: stoppedBody?.description || `Already stopped`,
         alreadyStopped: true,
       });
     }
-    
-    // Record the current event count to track only new events
-    const initialEventCount = session.readEvents(0, 10000).events.length;
-    
+
+    // Wait for a stop event
     return new Promise((resolve) => {
-      const checkForBreakpoint = () => {
+      const checkForStop = () => {
         const elapsed = Date.now() - startTime;
-        
+
+        // Check for timeout
         if (elapsed >= timeout) {
           resolve(
             jsonContent({
               success: false,
               reason: "timeout",
               elapsed,
-              message: `Timeout after ${timeout}ms waiting for breakpoint`,
-            })
+              message: `Timeout after ${timeout}ms waiting for stop`,
+            }),
           );
           return;
         }
 
-        // Read only events that occurred after we started waiting
-        const allEvents = session.readEvents(0, 10000).events;
-        const newEvents = allEvents.slice(initialEventCount);
-        
-        // Look for a stopped event in the new events
-        const stoppedEvent = newEvents.find((e) => e.event === "stopped");
-
-        if (stoppedEvent && stoppedEvent.body) {
-          const stoppedBody = stoppedEvent.body as any;
-          
-          // Check if it's a breakpoint or any other stop reason
-          if (stoppedBody.reason === "breakpoint") {
+        // Check current state
+        const state = isCurrentlyStopped();
+        if (state.stopped) {
+          if (state.reason === "terminated") {
             resolve(
               jsonContent({
                 success: true,
-                reason: "breakpoint",
+                reason: "terminated",
                 elapsed,
-                threadId: stoppedBody.threadId,
-                hitBreakpointIds: stoppedBody.hitBreakpointIds,
-                description: stoppedBody.description,
-              })
-            );
-            return;
-          } else if (stoppedBody.reason) {
-            // Also return for other stop reasons (step, exception, etc.)
-            resolve(
-              jsonContent({
-                success: true,
-                reason: stoppedBody.reason,
-                elapsed,
-                threadId: stoppedBody.threadId,
-                description: stoppedBody.description || `Stopped due to: ${stoppedBody.reason}`,
-              })
+                description: "Program has terminated",
+              }),
             );
             return;
           }
+
+          const stoppedBody = state.event?.body as any;
+          resolve(
+            jsonContent({
+              success: true,
+              reason: stoppedBody?.reason || "stopped",
+              elapsed,
+              threadId: stoppedBody?.threadId,
+              hitBreakpointIds: stoppedBody?.hitBreakpointIds,
+              description:
+                stoppedBody?.description ||
+                `Stopped due to: ${stoppedBody?.reason || "unknown"}`,
+            }),
+          );
+          return;
         }
 
-        setTimeout(checkForBreakpoint, checkInterval);
+        // Continue checking
+        setTimeout(checkForStop, checkInterval);
       };
 
-      checkForBreakpoint();
+      checkForStop();
     });
   },
 );

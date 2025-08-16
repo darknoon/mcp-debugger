@@ -4,22 +4,29 @@ import { jsonContent, server, sessions } from "./server";
 
 server.tool(
   "debuggerContinue",
+  `If the program isn't started yet, this will start execution. If the program is paused, it will continue execution (but return control immediately).`,
   {
     sessionId: z
       .string()
       .optional()
-      .describe("The session ID of the debugger session to continue (uses last session if not provided)"),
+      .describe(
+        "The session ID of the debugger session to continue (uses last session if not provided)",
+      ),
   },
   async ({ sessionId }) => {
     const session = sessions.getLastOrSpecific(sessionId);
-    
+
     if (!session) {
-      throw new Error(sessionId ? `Session ${sessionId} not found` : "No active debug session");
+      throw new Error(
+        sessionId
+          ? `Session ${sessionId} not found`
+          : "No active debug session",
+      );
     }
 
     let response;
     let command;
-    
+
     if (!session.started) {
       response = await session.request("configurationDone");
       session.started = true;
@@ -30,7 +37,7 @@ server.tool(
         .readEvents(0, 10000)
         .events.reverse()
         .find((e) => e.event === "stopped");
-      
+
       let threadId = 1; // Default to thread 1
       if (lastStoppedEvent && lastStoppedEvent.body) {
         const stoppedBody = lastStoppedEvent.body as any;
@@ -38,7 +45,7 @@ server.tool(
           threadId = stoppedBody.threadId;
         }
       }
-      
+
       response = await session.request("continue", { threadId });
       command = "continue";
     }

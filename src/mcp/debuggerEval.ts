@@ -8,30 +8,35 @@ server.tool(
     sessionId: z
       .string()
       .optional()
-      .describe("The session ID of the debugger session (uses last session if not provided)"),
-    expression: z
-      .string()
-      .describe("The Python expression to evaluate"),
+      .describe(
+        "The session ID of the debugger session (uses last session if not provided)",
+      ),
+    expression: z.string().describe("The Python expression to evaluate"),
     frameId: z
       .number()
       .optional()
-      .describe("The frame ID to evaluate in (uses current frame if not provided)"),
+      .describe(
+        "The frame ID to evaluate in (uses current frame if not provided)",
+      ),
   },
   async ({ sessionId, expression, frameId }) => {
     const session = sessions.getLastOrSpecific(sessionId);
-    
+
     if (!session) {
-      throw new Error(sessionId ? `Session ${sessionId} not found` : "No active debug session");
+      throw new Error(
+        sessionId
+          ? `Session ${sessionId} not found`
+          : "No active debug session",
+      );
     }
 
     let targetFrameId = frameId;
-    
     if (!targetFrameId) {
       const lastStoppedEvent = session
         .readEvents(0, 1000)
         .events.reverse()
         .find((e) => e.event === "stopped");
-      
+
       if (lastStoppedEvent && lastStoppedEvent.body) {
         const threadId = (lastStoppedEvent.body as any).threadId;
         if (threadId) {

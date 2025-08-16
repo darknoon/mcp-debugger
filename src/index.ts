@@ -12,7 +12,6 @@ import "./mcp/debuggerStepOut";
 import "./mcp/debuggerEval";
 import "./mcp/debuggerWaitUntilBreakpoint";
 import "./mcp/debuggerLogs";
-import "./mcp/debuggerSources";
 
 runServerStdio().catch((err) => {
   console.error("Fatal error:", err);

@@ -1,5 +1,5 @@
 import z from "zod";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 
 import { jsonContent, server, sessions } from "./server";
@@ -15,14 +15,20 @@ server.tool(
       ),
     filePath: z
       .string()
-      .describe("The file path where the breakpoint should be set"),
-    old_str: z
-      .string()
-      .describe(
-        "The string to search for in the file to determine breakpoint location",
-      ),
+      .describe("The file path where the breakpoints should be set"),
+    breakpoints: z
+      .array(
+        z.object({
+          old_str: z
+            .string()
+            .describe(
+              "The string to search for in the file to determine breakpoint location. This must not span multiple lines.",
+            ),
+        }),
+      )
+      .describe("Array of breakpoints to set in the file"),
   },
-  async ({ sessionId, filePath, old_str }) => {
+  async ({ sessionId, filePath, breakpoints }) => {
     const session = sessions.getLastOrSpecific(sessionId);
 
     if (!session) {
@@ -33,37 +39,59 @@ server.tool(
       );
     }
 
+    // Validate that none of the search strings are multi-line
+    for (const bp of breakpoints) {
+      if (bp.old_str.includes("\n")) {
+        throw new Error(
+          `Search string must not span multiple lines: "${bp.old_str}"`,
+        );
+      }
+    }
+
     // Resolve path relative to CWD (either the one specified in debuggerRun or process.cwd())
     const cwd = session.cwd || process.cwd();
     const absolutePath = filePath.startsWith("/")
       ? filePath
       : resolve(cwd, filePath);
 
-    // Read the file and find the line number
+    if (!existsSync(absolutePath)) {
+      throw new Error(`File ${absolutePath} not found`);
+    }
+
+    // Read the file and find the line numbers for all breakpoints
     const fileContent = readFileSync(absolutePath, "utf-8");
     const lines = fileContent.split("\n");
 
-    const lineNumber = lines.findIndex((line) => line.includes(old_str)) + 1;
+    const breakpointLines = breakpoints.map((bp) => {
+      const lineNumber =
+        lines.findIndex((line) => line.includes(bp.old_str)) + 1;
 
-    if (lineNumber === 0) {
-      throw new Error(`String "${old_str}" not found in file ${filePath}`);
-    }
+      if (lineNumber === 0) {
+        throw new Error(`String "${bp.old_str}" not found in file ${filePath}`);
+      }
+
+      return {
+        line: lineNumber,
+        old_str: bp.old_str,
+      };
+    });
 
     const response = await session.request("setBreakpoints", {
       source: {
         path: absolutePath,
       },
-      breakpoints: [
-        {
-          line: lineNumber,
-        },
-      ],
+      breakpoints: breakpointLines.map((bp) => ({
+        line: bp.line,
+      })),
     });
 
     return jsonContent({
       success: true,
       filePath: absolutePath,
-      lineNumber,
+      breakpointLines: breakpointLines.map((bp) => ({
+        line: bp.line,
+        searchString: bp.old_str,
+      })),
       breakpoints: response.breakpoints,
     });
   },

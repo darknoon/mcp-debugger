@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun --hot run src/index.ts)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

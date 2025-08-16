@@ -13,3 +13,18 @@ Commands:
 - Start: `bun run start`
 - Build: `bun run build`
 
+
+```json
+    "mcpServers": {
+    "debugger": {
+        "type": "stdio",
+        "command": "/Users/andrew/.bun/bin/bun",
+        "args": [
+        "run",
+        "--hot",
+        "/Users/andrew/Developer/ML/mcp-debugger/src/index.ts"
+        ],
+        "env": {}
+    }
+    },
+```

@@ -43,3 +43,6 @@ claude
 
 Tell claude:
 > let's use the debugger mcp to hit the race condition in the program
+
+> look for the race condition in @order_processor.py @test_orders.py and demonstrate it in the debugger
+

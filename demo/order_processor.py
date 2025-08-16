@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """
-Order Processing System with a subtle race condition bug.
 The bug occurs when concurrent orders interact with the loyalty discount system.
 """
 
@@ -51,7 +50,6 @@ class Warehouse:
         return self.inventory[product_id] >= quantity
 
     def reserve_items(self, product_id: str, quantity: int) -> bool:
-        # Partial lock - potential race condition
         if self.check_availability(product_id, quantity):
             with self.lock:
                 self.inventory[product_id] -= quantity
@@ -155,7 +153,6 @@ class OrderProcessor:
         # Customer discount can change during calculation
         discount_rate = customer.get_loyalty_discount()
 
-        # Simulate some processing time where race condition can occur
         time.sleep(0.001)
 
         # Apply discount
@@ -203,10 +200,8 @@ class OrderProcessor:
             with self.processing_lock:
                 self.pending_orders.append(order)
 
-            # Calculate total (potential race condition with loyalty status)
             total = self.calculate_order_total(order, customer)
 
-            # Allocate inventory (potential race condition with concurrent orders)
             if not self.allocate_inventory(order):
                 with self.processing_lock:
                     self.pending_orders.remove(order)
@@ -278,7 +273,6 @@ class OrderProcessor:
 
 
 def simulate_concurrent_orders():
-    """Simulate a scenario that triggers the race condition bug."""
     processor = OrderProcessor()
 
     # Create customers
@@ -319,7 +313,6 @@ def simulate_concurrent_orders():
     for order, customer in orders_to_process:
         thread = processor.process_order_async(order, customer)
         threads.append(thread)
-        # Small delay to increase chance of race condition
         time.sleep(random.uniform(0.001, 0.01))
 
     # Wait for all threads to complete

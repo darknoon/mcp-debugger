@@ -25,6 +25,9 @@ class RepoManager:
         Returns:
             Path to the checked out repository
         """
+        import hashlib
+        import time
+        
         if base_path:
             runs_dir = Path(base_path) / "runs"
         else:
@@ -32,8 +35,9 @@ class RepoManager:
             
         runs_dir.mkdir(exist_ok=True)
         
-        # Create a run directory named after the instance ID
-        run_dir = runs_dir / instance_id
+        # Create a unique run directory with timestamp hash
+        timestamp_hash = hashlib.md5(str(time.time()).encode()).hexdigest()[:8]
+        run_dir = runs_dir / f"{instance_id}-{timestamp_hash}"
         run_dir.mkdir(exist_ok=True)
         
         repo_path = run_dir / "repo"

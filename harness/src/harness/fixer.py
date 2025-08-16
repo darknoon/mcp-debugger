@@ -3,7 +3,7 @@
 import subprocess
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 
 class IssueFixer:
@@ -83,52 +83,94 @@ class IssueFixer:
         finally:
             os.chdir(self.original_cwd)
     
-    def run_claude_code_fix(self, problem_statement: str) -> Optional[str]:
+    def run_claude_code_fix(self, problem_statement: str, timeout: int = 600) -> Optional[str]:
         """
         Run Claude Code non-interactively to fix the issue.
         
         Args:
             problem_statement: Description of the issue to fix
+            timeout: Timeout in seconds (default 600 = 10 minutes)
             
         Returns:
             Generated patch content or None if fix failed
         """
         os.chdir(self.repo_path)
         
-        # Create log file in the parent run directory
-        run_dir = self.repo_path.parent
-        log_file = run_dir / "claude_output.log"
+        # Log the start
+        with open(self.log_file, "a") as f:
+            f.write(f"\n=== Running Claude Code ===\n")
+            f.write(f"Problem statement length: {len(problem_statement)} characters\n")
+            f.write(f"Timeout: {timeout} seconds\n")
+            f.flush()
         
         try:
             print("Running Claude Code to generate fix...")
             
-            # Run claude code with the problem statement
-            # No need to escape when using subprocess with list format
+            # Build a proper prompt for Claude
+            prompt = f"""You are fixing a bug in a repository. The test environment has already been set up with the failing test case.
+
+ISSUE DESCRIPTION:
+{problem_statement}
+
+INSTRUCTIONS:
+1. First, explore the repository structure to understand the codebase
+2. Locate and read the relevant files mentioned in the issue
+3. Run any tests to understand the failure
+4. Make the necessary code changes to fix the issue
+5. Verify your fix works by running the tests again
+
+Please fix this issue now. Focus on making minimal, targeted changes that address the root cause."""
             cmd = [
                 "claude", 
                 "--print",
+                "--verbose",
+                "--output-format", "text",
+                "--dangerously-skip-permissions",  # Skip permission prompts for sandboxed environment
+                "--add-dir", str(self.repo_path),  # Restrict access to just the repo directory
                 "--model", "sonnet",
-                f"Fix this issue: {problem_statement}. Generate a patch for the changes."
+                prompt
             ]
             
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=600  # 10 minute timeout
-            )
+            # Log full command
+            with open(self.log_file, "a") as f:
+                f.write(f"Command parts: {len(cmd)} elements\n")
+                f.write(f"  claude --print --model sonnet [prompt with {len(prompt)} chars]\n")
+                f.write(f"Working directory: {os.getcwd()}\n")
+                f.write("Starting execution...\n")
+                f.flush()
             
-            # Write all output to log file
-            with open(log_file, "w") as f:
-                f.write(f"Command: {' '.join(cmd)}\n")
-                f.write(f"Return code: {result.returncode}\n")
-                f.write("=== STDOUT ===\n")
-                f.write(result.stdout)
-                f.write("\n=== STDERR ===\n")
-                f.write(result.stderr)
-                f.write("\n")
+            print(f"Executing Claude Code with {timeout}s timeout...")
+            print(f"Streaming output to: {self.log_file}")
             
-            if result.returncode == 0:
+            # Stream output in real-time to log file
+            with open(self.log_file, "a") as log:
+                log.write("\n=== CLAUDE CODE EXECUTION ===\n")
+                log.flush()
+                
+                # Run with real-time output streaming
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,  # Merge stderr into stdout
+                    text=True,
+                    bufsize=1  # Line buffered
+                )
+                
+                # Stream output line by line
+                for line in iter(process.stdout.readline, ''):
+                    if line:
+                        log.write(line)
+                        log.flush()
+                        print(f"  {line.rstrip()}")
+                
+                process.wait(timeout=timeout)
+                returncode = process.returncode
+                
+                log.write(f"\nReturn code: {returncode}\n")
+                log.write("=== END EXECUTION ===\n")
+                log.flush()
+            
+            if returncode == 0:
                 print("Claude Code completed successfully")
                 
                 # Try to get the git diff as the patch
@@ -139,7 +181,7 @@ class IssueFixer:
                 )
                 
                 # Append diff to log file
-                with open(log_file, "a") as f:
+                with open(self.log_file, "a") as f:
                     f.write("=== GIT DIFF ===\n")
                     f.write(diff_result.stdout)
                     f.write("\n")
@@ -150,19 +192,19 @@ class IssueFixer:
                     print("No changes detected after Claude Code run")
                     return None
             else:
-                print(f"Claude Code failed: {result.stderr}")
+                print(f"Claude Code failed with return code: {returncode}")
                 return None
                 
         except subprocess.TimeoutExpired:
-            error_msg = "Claude Code execution timed out"
+            error_msg = f"Claude Code execution timed out after {timeout} seconds"
             print(error_msg)
-            with open(log_file, "a") as f:
+            with open(self.log_file, "a") as f:
                 f.write(f"ERROR: {error_msg}\n")
             return None
         except Exception as e:
             error_msg = f"Error running Claude Code: {str(e)}"
             print(error_msg)
-            with open(log_file, "a") as f:
+            with open(self.log_file, "a") as f:
                 f.write(f"ERROR: {error_msg}\n")
             return None
         finally:
@@ -205,6 +247,18 @@ class IssueFixer:
                     f.write("ERROR: Failed to apply test patch\n")
                 return result
             
+            # Commit the test patch so we can isolate Claude's changes
+            os.chdir(self.repo_path)
+            # Configure git user if not set
+            subprocess.run(["git", "config", "user.name", "SWE-bench"], capture_output=True)
+            subprocess.run(["git", "config", "user.email", "swe-bench@example.com"], capture_output=True)
+            subprocess.run(["git", "add", "-A"], capture_output=True)
+            subprocess.run(["git", "commit", "-m", "Applied test patch"], capture_output=True)
+            os.chdir(self.original_cwd)
+            
+            with open(self.log_file, "a") as f:
+                f.write("Committed test patch to isolate Claude's changes\n")
+            
             # Now run Claude Code to generate the actual fix
             problem_statement = example.get("problem_statement", "")
             if not problem_statement:
@@ -213,15 +267,24 @@ class IssueFixer:
                     f.write("ERROR: No problem statement provided\n")
                 return result
                 
-            model_patch = self.run_claude_code_fix(problem_statement)
+            model_patch = self.run_claude_code_fix(problem_statement, timeout=1200)  # 20 minutes for complex issues
             
             if model_patch:
                 result["model_patch"] = model_patch
                 result["patch_applied"] = True
                 result["success"] = True
-                print("Successfully generated fix with Claude Code")
+                
+                # Save the patch to a file for easy inspection
+                patch_file = self.run_dir / "model_patch.diff"
+                with open(patch_file, "w") as f:
+                    f.write(model_patch)
+                
+                print(f"Successfully generated fix with Claude Code")
+                print(f"Patch saved to: {patch_file}")
+                
                 with open(self.log_file, "a") as f:
                     f.write("\nSUCCESS: Generated fix with Claude Code\n")
+                    f.write(f"Patch saved to: {patch_file}\n")
             else:
                 result["error"] = "Claude Code failed to generate a fix"
                 with open(self.log_file, "a") as f:

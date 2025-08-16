@@ -8,7 +8,9 @@
       "Bash(do grep -l \"Session ${sessionId} not found\" \"$file\")",
       "Bash(done)",
       "Bash(do)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "mcp__debugger__debuggerRun",
+      "mcp__debugger__debuggerWaitUntilBreakpoint"
     ],
     "deny": [],
     "ask": []

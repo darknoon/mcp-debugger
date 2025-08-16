@@ -20,8 +20,6 @@ Commands:
         "type": "stdio",
         "command": "/Users/andrew/.bun/bin/bun",
         "args": [
-        "run",
-        "--hot",
         "/Users/andrew/Developer/ML/mcp-debugger/src/index.ts"
         ],
         "env": {}

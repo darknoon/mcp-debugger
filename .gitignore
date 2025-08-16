@@ -4,3 +4,4 @@ node_modules/
 *.pyo
 
 harness/src/harness.egg-info/
+harness/runs/

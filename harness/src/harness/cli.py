@@ -78,40 +78,40 @@ def fix(instance_id: str, dataset: str, output: Optional[str], temp_dir: Optiona
         sys.exit(1)
 
     # Process the example
-    with RepoManager() as repo_manager:
-        try:
-            # Checkout repository
-            repo_path = repo_manager.checkout_repo(repo_url, base_commit, temp_dir)
-            click.echo(f"Repository checked out to: {repo_path}")
+    repo_manager = RepoManager()
+    try:
+        # Checkout repository
+        repo_path = repo_manager.checkout_repo(repo_url, base_commit, instance_id, temp_dir)
+        click.echo(f"Repository checked out to: {repo_path}")
 
-            # Fix the issue
-            fixer = IssueFixer(repo_path)
-            result = fixer.fix_issue(example)
+        # Fix the issue
+        fixer = IssueFixer(repo_path)
+        result = fixer.fix_issue(example)
 
-            # Print results
-            click.echo("\\n" + "=" * 50)
-            click.echo("RESULTS:")
-            click.echo("=" * 50)
-            click.echo(f"Instance ID: {result['instance_id']}")
-            click.echo(f"Success: {result['success']}")
-            click.echo(f"Patch Applied: {result['patch_applied']}")
+        # Print results
+        click.echo("\\n" + "=" * 50)
+        click.echo("RESULTS:")
+        click.echo("=" * 50)
+        click.echo(f"Instance ID: {result['instance_id']}")
+        click.echo(f"Success: {result['success']}")
+        click.echo(f"Patch Applied: {result['patch_applied']}")
 
-            if result.get("error"):
-                click.echo(f"Error: {result['error']}")
+        if result.get("error"):
+            click.echo(f"Error: {result['error']}")
 
-            if result.get("output"):
-                click.echo("\\nDetailed Output:")
-                click.echo(result["output"])
+        if result.get("output"):
+            click.echo("\\nDetailed Output:")
+            click.echo(result["output"])
 
-            # Save results to file if specified
-            if output:
-                with open(output, "w") as f:
-                    json.dump(result, f, indent=2)
-                click.echo(f"\\nResults saved to: {output}")
+        # Save results to file if specified
+        if output:
+            with open(output, "w") as f:
+                json.dump(result, f, indent=2)
+            click.echo(f"\\nResults saved to: {output}")
 
-        except Exception as e:
-            click.echo(f"Error processing example: {str(e)}", err=True)
-            sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error processing example: {str(e)}", err=True)
+        sys.exit(1)
 
 
 @main.command()
@@ -167,18 +167,18 @@ def fix_all(
                 click.echo(f"  Skipping: No base commit")
                 continue
 
-            with RepoManager() as repo_manager:
-                repo_path = repo_manager.checkout_repo(repo_url, base_commit, temp_dir)
-                fixer = IssueFixer(repo_path)
-                result = fixer.fix_issue(example)
-                results.append(result)
+            repo_manager = RepoManager()
+            repo_path = repo_manager.checkout_repo(repo_url, base_commit, instance_id, temp_dir)
+            fixer = IssueFixer(repo_path)
+            result = fixer.fix_issue(example)
+            results.append(result)
 
-                # Save individual result
-                result_file = output_path / f"{instance_id}.json"
-                with open(result_file, "w") as f:
-                    json.dump(result, f, indent=2)
+            # Save individual result
+            result_file = output_path / f"{instance_id}.json"
+            with open(result_file, "w") as f:
+                json.dump(result, f, indent=2)
 
-                click.echo(f"  Result: {'SUCCESS' if result['success'] else 'FAILED'}")
+            click.echo(f"  Result: {'SUCCESS' if result['success'] else 'FAILED'}")
 
         except Exception as e:
             click.echo(f"  Error: {str(e)}")

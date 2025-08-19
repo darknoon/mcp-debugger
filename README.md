@@ -13,21 +13,22 @@ Commands:
 - Start: `bun run start`
 - Build: `bun run build`
 
-
 ```json
-    "mcpServers": {
+{
+  "mcpServers": {
     "debugger": {
         "type": "stdio",
         "command": "/Users/andrew/.bun/bin/bun",
-        "args": [
-        "/Users/andrew/Developer/ML/mcp-debugger/src/index.ts"
-        ],
+        "args": ["/Users/andrew/Developer/ML/mcp-debugger/src/index.ts"],
         "env": {}
     }
-    },
+  }
+}
 ```
 
 ### Evaluate
+
+`harness` is a work-in-progress tool for comparing MCP Debugger's performance against a subset of SWE-bench.
 
 ```
 uv run python -m harness.cli fix astropy__astropy-12907

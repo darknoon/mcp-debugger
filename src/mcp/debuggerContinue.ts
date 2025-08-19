@@ -25,12 +25,9 @@ server.tool(
     }
 
     let response;
-    let command;
-
     if (!session.started) {
       response = await session.request("configurationDone", {});
       session.started = true;
-      command = "configurationDone";
     } else {
       // Get the thread ID from the last stopped event
       const lastStoppedEvent = session
@@ -47,12 +44,10 @@ server.tool(
       }
 
       response = await session.request("continue", { threadId });
-      command = "continue";
     }
 
     return jsonContent({
       success: true,
-      command,
       response,
     });
   },

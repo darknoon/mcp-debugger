@@ -5,11 +5,18 @@ import getPort from "get-port";
 import { jsonContent, server, sessions } from "./server";
 import { TcpTransport } from "../dap/transport";
 import { DapSession } from "../dap/session";
+import { ensureDebugpy } from "../util/debugpy";
+import { ensureLLDB, LldbFlavor } from "../util/lldb";
+import { getRustSysroot, getRustLldbInitCommands } from "../util/rustc";
 
 server.tool(
   "debuggerRun",
   `
-This starts the built-in debugger, which currently supports Python projects. Use this instead of Bash() or your built-in Shell tools, when wanting to execute the Python project.
+This starts the built-in debugger, which currently supports:
+- Python projects
+- LLDB (C, C++, Rust, (and Swift on Apple platforms)... plenty of others i'm probably not thinking of)
+
+Use this instead of Bash() or your built-in Shell tools, when wanting to execute the project with the debugger.
 
 A typical flow might look like:
 - debuggerRun
@@ -21,41 +28,85 @@ You can also use a non-blocking version of "debuggerWaitUntilBreakpoint" named "
 has additional info too. This is useful if you wanna go do other things :0
 `,
   {
+    type: z
+      .enum(["debugpy", "lldb", "lldb-rust", "lldb-swift"])
+      .describe(
+        `If you're using Rust or Swift, it's still LLDB, but there's some niceties to specifying it in the "type"!`,
+      ),
     args: z
       .array(z.string())
       .optional()
       .describe(
-        "Arguments to pass to the Python script, starting with either -m or the .py file.",
+        `
+If type=debugpy:
+Arguments to pass to the Python script starting with either -m or the .py file.
+
+If type=lldb*:
+Arguments to start the process. Is NOT processed by Bash so cannot contain variables etc...`,
       ),
     cwd: z
       .string()
       .optional()
       .describe(
-        "Working directory for the Python process, requires you to have UV & debugpy installed in that directory's UV venv. If you leave this blank it'll use the demo project which has these.",
+        "Working directory for the process. If you leave this blank it'll use the current working directory.",
       ),
   },
-  async ({ args = [], cwd }) => {
-    // Get a free port for debugpy
-    const port = await getPort();
+  async ({ type, args = [], cwd }) => {
+    // Get a free port.
     const host = "127.0.0.1";
+    const port = await getPort();
 
-    // Start debugpy subprocess
-    const debugpyArgs = [
-      "run",
-      "-m",
-      "debugpy",
-      "--wait-for-client",
-      "--listen",
-      `${port}`,
-      "--configure-subProcess",
-      "False",
-      ...args,
-    ];
+    let child = null as ReturnType<typeof spawn> | null;
+    let adapterID: string = "";
 
-    const pythonProcess = spawn("uv", debugpyArgs, {
-      cwd: cwd || process.cwd(),
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    if (type === "debugpy") {
+      const { debugpyWheel } = await ensureDebugpy();
+      const debugpyArgs = [
+        "-m",
+        "debugpy",
+        "--wait-for-client",
+        "--listen",
+        `${port}`,
+        "--configure-subProcess",
+        "False",
+        ...args,
+      ];
+      child = spawn("python3", debugpyArgs, {
+        cwd: cwd || process.cwd(),
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, PYTHONPATH: debugpyWheel },
+      });
+      adapterID = "debugpy";
+    } else {
+      const flavor = type as LldbFlavor;
+      const { lldbDap } = await ensureLLDB(flavor);
+
+      // We don't know the launch target; assume args[0] is the program and rest are program args.
+      if (args.length === 0) {
+        throw new Error(
+          "For lldb*, provide the program to launch as the first argument and its arguments after it.",
+        );
+      }
+      const program = args[0];
+      const programArgs = args.slice(1);
+
+      const lldbArgs = [
+        "--port",
+        String(port),
+        "--wait-for-debugger",
+        "--launch-target",
+        program,
+        "--",
+        ...programArgs,
+      ];
+
+      // Spawn via shell if the command contains spaces (xcrun -f lldb-dap)
+      child = spawn(lldbDap, lldbArgs, {
+        cwd: cwd || process.cwd(),
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      adapterID = "lldb";
+    }
 
     // Store stdout/stderr buffers temporarily until session is created
     const tempLogs: {
@@ -65,32 +116,32 @@ has additional info too. This is useful if you wanna go do other things :0
     }[] = [];
 
     // Handle process output
-    pythonProcess.stdout?.on("data", (data) => {
+    child!.stdout?.on("data", (data: Buffer) => {
       const log = {
         type: "stdout" as const,
         timestamp: Date.now(),
         data: data.toString(),
       };
       tempLogs.push(log);
-      console.error(`[debugpy stdout]: ${data.toString()}`);
+      console.error(`[dap stdout]: ${data.toString()}`);
     });
 
-    pythonProcess.stderr?.on("data", (data) => {
+    child!.stderr?.on("data", (data: Buffer) => {
       const log = {
         type: "stderr" as const,
         timestamp: Date.now(),
         data: data.toString(),
       };
       tempLogs.push(log);
-      console.error(`[debugpy stderr]: ${data.toString()}`);
+      console.error(`[dap stderr]: ${data.toString()}`);
     });
 
-    pythonProcess.on("error", (error) => {
-      console.error(`[debugpy error]: ${error.message}`);
+    child!.on("error", (error: Error) => {
+      console.error(`[dap error]: ${error.message}`);
     });
 
-    pythonProcess.on("exit", (code, signal) => {
-      console.error(`[debugpy exit]: code=${code}, signal=${signal}`);
+    child!.on("exit", (code: number | null, signal: NodeJS.Signals | null) => {
+      console.error(`[dap exit]: code=${code}, signal=${signal}`);
     });
 
     // Give debugpy a moment to start listening and retry connection if needed
@@ -113,7 +164,7 @@ has additional info too. This is useful if you wanna go do other things :0
         console.error(`[debugpy] Connection attempt ${i + 1} failed: ${error}`);
         if (i === maxRetries - 1) {
           // Last attempt failed, clean up and throw
-          pythonProcess.kill();
+          child?.kill();
           throw new Error(
             `Failed to connect to debugpy after ${maxRetries} attempts: ${error}`,
           );
@@ -122,14 +173,14 @@ has additional info too. This is useful if you wanna go do other things :0
     }
 
     if (!sess || !transport) {
-      pythonProcess.kill();
+      child?.kill();
       throw new Error("Failed to establish DAP session");
     }
 
     sessions.add(sess);
 
     // Store the process reference so we can clean it up later if needed
-    sess.pythonProcess = pythonProcess;
+    sess.process = child || undefined;
     // Store the cwd for relative path resolution in breakpoint commands
     sess.cwd = cwd || process.cwd();
 
@@ -137,52 +188,89 @@ has additional info too. This is useful if you wanna go do other things :0
     sess.processLogs = tempLogs;
 
     // Replace the listeners to log to session instead of temp array
-    pythonProcess.stdout?.removeAllListeners("data");
-    pythonProcess.stdout?.on("data", (data) => {
+    child!.stdout?.removeAllListeners("data");
+    child!.stdout?.on("data", (data: Buffer) => {
       sess.processLogs.push({
         type: "stdout",
         timestamp: Date.now(),
         data: data.toString(),
       });
-      console.error(`[debugpy stdout]: ${data.toString()}`);
+      console.error(`[dap stdout]: ${data.toString()}`);
     });
 
-    pythonProcess.stderr?.removeAllListeners("data");
-    pythonProcess.stderr?.on("data", (data) => {
+    child!.stderr?.removeAllListeners("data");
+    child!.stderr?.on("data", (data: Buffer) => {
       sess.processLogs.push({
         type: "stderr",
         timestamp: Date.now(),
         data: data.toString(),
       });
-      console.error(`[debugpy stderr]: ${data.toString()}`);
+      console.error(`[dap stderr]: ${data.toString()}`);
+    });
+
+    const initializedPromise = new Promise<void>((resolve) => {
+      const onEvent = (e: any) => {
+        if (e.type === "event" && e.event === "initialized") {
+          sess.off("event", onEvent);
+          resolve();
+        }
+      };
+      sess.on("event", onEvent);
     });
 
     try {
       await sess.request("initialize", {
         clientID: "mcp-debugger",
-        adapterID: "debugpy",
+        adapterID,
       });
     } catch (error) {
-      console.error("[debugpy] Failed to initialize DAP session:", error);
-      sess.close(); // This will also kill the Python process
+      console.error("Failed to initialize DAP session:", error);
+      sess.close(); // This will also kill the process
       throw new Error(`Failed to initialize DAP session: ${error}`);
     }
 
-    // Intentionally don't await this... DAP is a little quirky.
-    void sess
-      .request("attach", {
-        connect: {
-          host,
-          port,
-        },
-      })
-      .then(() => {
-        sess.started = true;
-      })
-      .catch((error) => {
-        console.error("[debugpy] Failed to attach to debug session:", error);
-        // Don't throw here since we're in an async context
-      });
+    // Wait for 'initialized' event before configuration
+    await initializedPromise;
+
+    // Send configurationDone after any future configuration steps (breakpoints etc.)
+    await sess.request("configurationDone", {} as any);
+
+    if (adapterID === "debugpy") {
+      // Attach to debugpy server
+      void sess
+        .request("attach", {
+          connect: { host, port },
+        })
+        .then(() => {
+          sess.started = true;
+        })
+        .catch((error) => {
+          console.error("Failed to attach to debug session:", error);
+        });
+    } else {
+      // lldb-dap has already launched the target
+      sess.started = true;
+
+      // If lldb-rust, emulate rust-lldb helpers by sourcing Rust lldb scripts.
+      // https://github.com/helix-editor/helix/wiki/Debugger-Configurations#configuration-for-rust
+      if (type === "lldb-rust") {
+        try {
+          const sysroot = await getRustSysroot();
+          const { importCmd, sourceCmd } = getRustLldbInitCommands(sysroot);
+
+          await sess.request("evaluate", {
+            expression: importCmd,
+            context: "repl",
+          });
+          await sess.request("evaluate", {
+            expression: sourceCmd,
+            context: "repl",
+          });
+        } catch (e) {
+          console.error(`[lldb-rust] Failed to source Rust lldb helpers: ${e}`);
+        }
+      }
+    }
 
     return jsonContent({
       sessionId: sess.id,

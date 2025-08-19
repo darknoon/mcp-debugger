@@ -39,11 +39,11 @@ server.tool(
     }
 
     // Ensure the process is killed
-    if (session.pythonProcess && !session.pythonProcess.killed) {
+    if (session.process && !session.process.killed) {
       console.error(
-        `[debuggerTerminate] Forcefully killing process ${session.pythonProcess.pid}`,
+        `[debuggerTerminate] Forcefully killing process ${session.process.pid}`,
       );
-      session.pythonProcess.kill("SIGKILL");
+      session.process.kill("SIGKILL");
     }
 
     session.close();

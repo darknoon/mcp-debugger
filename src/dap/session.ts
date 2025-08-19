@@ -23,7 +23,7 @@ export class DapSession extends EventEmitter {
   readonly id: string;
 
   started: boolean = false;
-  pythonProcess?: ChildProcess;
+  process?: ChildProcess;
   processLogs: {
     type: "stdout" | "stderr";
     timestamp: number;
@@ -92,9 +92,9 @@ export class DapSession extends EventEmitter {
 
   close(): void {
     // Terminate the Python process if it exists
-    if (this.pythonProcess) {
-      this.pythonProcess.kill();
-      this.pythonProcess = undefined;
+    if (this.process) {
+      this.process.kill();
+      this.process = undefined;
     }
     this.transport.close();
   }

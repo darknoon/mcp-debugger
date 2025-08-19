@@ -28,7 +28,7 @@ server.tool(
     let command;
 
     if (!session.started) {
-      response = await session.request("configurationDone");
+      response = await session.request("configurationDone", {});
       session.started = true;
       command = "configurationDone";
     } else {

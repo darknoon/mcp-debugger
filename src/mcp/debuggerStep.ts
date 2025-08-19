@@ -43,7 +43,7 @@ server.tool(
       }
 
       if (!targetThreadId) {
-        const threadsResponse = await session.request("threads");
+        const threadsResponse = await session.request("threads", {});
         targetThreadId = threadsResponse.threads[0]?.id;
       }
     }

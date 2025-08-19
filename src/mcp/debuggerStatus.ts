@@ -83,7 +83,7 @@ server.tool(
 
     try {
       // Only try to get threads if not terminated
-      const threadsResponse = await session.request("threads");
+      const threadsResponse = await session.request("threads", {});
       status.threads = threadsResponse.threads;
 
       if (status.state === "stopped" && lastStoppedEvent?.body) {

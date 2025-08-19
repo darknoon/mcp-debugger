@@ -1,26 +1,86 @@
+// Core protocol messages
 export interface ProtocolMessage {
   seq: number;
   type: "request" | "response" | "event";
 }
 
-export type Request = DapRequest & ProtocolMessage;
+// Command and event enums for stronger typing
+export type DapCommand =
+  | "initialize"
+  | "configurationDone"
+  | "launch"
+  | "attach"
+  | "restart"
+  | "disconnect"
+  | "terminate"
+  | "setBreakpoints"
+  | "setFunctionBreakpoints"
+  | "setExceptionBreakpoints"
+  | "continue"
+  | "next"
+  | "stepIn"
+  | "stepOut"
+  | "stepBack"
+  | "reverseContinue"
+  | "restartFrame"
+  | "goto"
+  | "pause"
+  | "stackTrace"
+  | "scopes"
+  | "variables"
+  | "setVariable"
+  | "source"
+  | "threads"
+  | "modules"
+  | "loadedSources"
+  | "evaluate"
+  | "exceptionInfo";
 
-export interface Response extends ProtocolMessage {
+export type DapEventName =
+  | "initialized"
+  | "stopped"
+  | "continued"
+  | "exited"
+  | "terminated"
+  | "thread"
+  | "output"
+  | "breakpoint"
+  | "module"
+  | "loadedSource"
+  | "process"
+  | "capabilities"
+  | "progressStart"
+  | "progressUpdate"
+  | "progressEnd"
+  | "invalidated"
+  | "memory";
+
+// Generic request/response/event shells that are strongly typed by mappings below
+export interface Request<C extends DapCommand = DapCommand> extends ProtocolMessage {
+  type: "request";
+  command: C;
+  arguments?: RequestArgumentsMap[C];
+}
+
+export interface Response<C extends DapCommand = DapCommand> extends ProtocolMessage {
   type: "response";
   request_seq: number;
   success: boolean;
-  command: string;
+  command: C;
   message?: string;
-  body?: any;
+  body?: C extends keyof ResponseBodyMap ? ResponseBodyMap[C] : unknown;
 }
 
-export interface Event extends ProtocolMessage {
+export interface Event<E extends DapEventName = DapEventName> extends ProtocolMessage {
   type: "event";
-  event: string;
-  body?: any;
+  event: E;
+  body?: EventBodyMap[E];
 }
 
-export type DapMessage = Request | Response | Event;
+export type DapMessage =
+  | Request
+  | Response
+  | Event;
 
 export interface InitializeRequestArguments {
   clientID?: string;
@@ -494,75 +554,73 @@ export interface ExceptionInfoResponseBody {
   details?: ExceptionDetails;
 }
 
-export type DapRequest =
-  | { command: "initialize"; arguments: InitializeRequestArguments }
-  | { command: "configurationDone"; arguments?: {} }
-  | { command: "launch"; arguments: LaunchRequestArguments }
-  | { command: "attach"; arguments: AttachRequestArguments }
-  | { command: "restart"; arguments?: RestartArguments }
-  | { command: "disconnect"; arguments?: DisconnectRequestArguments }
-  | { command: "terminate"; arguments?: TerminateArguments }
-  | { command: "setBreakpoints"; arguments: SetBreakpointsArguments }
-  | {
-      command: "setFunctionBreakpoints";
-      arguments: SetFunctionBreakpointsArguments;
-    }
-  | {
-      command: "setExceptionBreakpoints";
-      arguments: SetExceptionBreakpointsArguments;
-    }
-  | { command: "continue"; arguments: ContinueArguments }
-  | { command: "next"; arguments: NextArguments }
-  | { command: "stepIn"; arguments: StepInArguments }
-  | { command: "stepOut"; arguments: StepOutArguments }
-  | { command: "stepBack"; arguments: StepBackArguments }
-  | { command: "reverseContinue"; arguments: ReverseContinueArguments }
-  | { command: "restartFrame"; arguments: RestartFrameArguments }
-  | { command: "goto"; arguments: GotoArguments }
-  | { command: "pause"; arguments: PauseArguments }
-  | { command: "stackTrace"; arguments: StackTraceArguments }
-  | { command: "scopes"; arguments: ScopesArguments }
-  | { command: "variables"; arguments: VariablesArguments }
-  | { command: "setVariable"; arguments: SetVariableArguments }
-  | { command: "source"; arguments: SourceArguments }
-  | { command: "threads"; arguments?: {} }
-  | { command: "modules"; arguments?: ModulesArguments }
-  | { command: "loadedSources"; arguments?: {} }
-  | { command: "evaluate"; arguments: EvaluateArguments }
-  | { command: "exceptionInfo"; arguments: ExceptionInfoArguments };
+// Request/response/event mappings
+export interface RequestArgumentsMap {
+  initialize: InitializeRequestArguments;
+  configurationDone: {} | undefined;
+  launch: LaunchRequestArguments;
+  attach: AttachRequestArguments;
+  restart: RestartArguments | undefined;
+  disconnect: DisconnectRequestArguments | undefined;
+  terminate: TerminateArguments | undefined;
+  setBreakpoints: SetBreakpointsArguments;
+  setFunctionBreakpoints: SetFunctionBreakpointsArguments;
+  setExceptionBreakpoints: SetExceptionBreakpointsArguments;
+  continue: ContinueArguments;
+  next: NextArguments;
+  stepIn: StepInArguments;
+  stepOut: StepOutArguments;
+  stepBack: StepBackArguments;
+  reverseContinue: ReverseContinueArguments;
+  restartFrame: RestartFrameArguments;
+  goto: GotoArguments;
+  pause: PauseArguments;
+  stackTrace: StackTraceArguments;
+  scopes: ScopesArguments;
+  variables: VariablesArguments;
+  setVariable: SetVariableArguments;
+  source: SourceArguments;
+  threads: {} | undefined;
+  modules: ModulesArguments | undefined;
+  loadedSources: {} | undefined;
+  evaluate: EvaluateArguments;
+  exceptionInfo: ExceptionInfoArguments;
+}
 
-export type DapResponse =
-  | { command: "initialize"; body: Capabilities }
-  | { command: "setBreakpoints"; body: SetBreakpointsResponseBody }
-  | { command: "continue"; body: ContinueResponseBody }
-  | { command: "stackTrace"; body: StackTraceResponseBody }
-  | { command: "scopes"; body: ScopesResponseBody }
-  | { command: "variables"; body: VariablesResponseBody }
-  | { command: "evaluate"; body: EvaluateResponseBody }
-  | { command: "threads"; body: ThreadsResponseBody }
-  | { command: "modules"; body: ModulesResponseBody }
-  | { command: "loadedSources"; body: LoadedSourcesResponseBody }
-  | { command: "source"; body: SourceResponseBody }
-  | { command: "exceptionInfo"; body: ExceptionInfoResponseBody };
+export interface ResponseBodyMap {
+  initialize: Capabilities;
+  setBreakpoints: SetBreakpointsResponseBody;
+  continue: ContinueResponseBody;
+  stackTrace: StackTraceResponseBody;
+  scopes: ScopesResponseBody;
+  variables: VariablesResponseBody;
+  evaluate: EvaluateResponseBody;
+  threads: ThreadsResponseBody;
+  modules: ModulesResponseBody;
+  loadedSources: LoadedSourcesResponseBody;
+  source: SourceResponseBody;
+  exceptionInfo: ExceptionInfoResponseBody;
+}
 
-export type DapEvent =
-  | { event: "initialized"; body?: InitializedEvent }
-  | { event: "stopped"; body: StoppedEventBody }
-  | { event: "continued"; body: ContinuedEventBody }
-  | { event: "exited"; body: ExitedEventBody }
-  | { event: "terminated"; body?: TerminatedEventBody }
-  | { event: "thread"; body: ThreadEventBody }
-  | { event: "output"; body: OutputEventBody }
-  | { event: "breakpoint"; body: BreakpointEventBody }
-  | { event: "module"; body: ModuleEventBody }
-  | { event: "loadedSource"; body: LoadedSourceEventBody }
-  | { event: "process"; body: ProcessEventBody }
-  | { event: "capabilities"; body: CapabilitiesEventBody }
-  | { event: "progressStart"; body: ProgressStartEventBody }
-  | { event: "progressUpdate"; body: ProgressUpdateEventBody }
-  | { event: "progressEnd"; body: ProgressEndEventBody }
-  | { event: "invalidated"; body: InvalidatedEventBody }
-  | { event: "memory"; body: MemoryEventBody };
+export interface EventBodyMap {
+  initialized: InitializedEvent | undefined;
+  stopped: StoppedEventBody;
+  continued: ContinuedEventBody;
+  exited: ExitedEventBody;
+  terminated: TerminatedEventBody | undefined;
+  thread: ThreadEventBody;
+  output: OutputEventBody;
+  breakpoint: BreakpointEventBody;
+  module: ModuleEventBody;
+  loadedSource: LoadedSourceEventBody;
+  process: ProcessEventBody;
+  capabilities: CapabilitiesEventBody;
+  progressStart: ProgressStartEventBody;
+  progressUpdate: ProgressUpdateEventBody;
+  progressEnd: ProgressEndEventBody;
+  invalidated: InvalidatedEventBody;
+  memory: MemoryEventBody;
+}
 
 export interface RestartArguments {
   arguments?: LaunchRequestArguments | AttachRequestArguments;

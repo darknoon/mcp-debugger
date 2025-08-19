@@ -1,7 +1,15 @@
 import { EventEmitter } from "node:events";
 import { ChildProcess } from "child_process";
 import { Transport } from "./transport";
-import { Request, Response, Event, DapMessage } from "./types";
+import {
+  Request,
+  Response,
+  Event,
+  DapMessage,
+  DapCommand,
+  RequestArgumentsMap,
+  ResponseBodyMap,
+} from "./types";
 
 let sessionCounter = 0;
 
@@ -16,7 +24,11 @@ export class DapSession extends EventEmitter {
 
   started: boolean = false;
   pythonProcess?: ChildProcess;
-  processLogs: { type: "stdout" | "stderr"; timestamp: number; data: string }[] = [];
+  processLogs: {
+    type: "stdout" | "stderr";
+    timestamp: number;
+    data: string;
+  }[] = [];
   cwd?: string;
 
   private seq = 1;
@@ -39,7 +51,7 @@ export class DapSession extends EventEmitter {
       const p = this.pending.get(response.request_seq);
       if (p) {
         this.pending.delete(response.request_seq);
-        if (response.success) p.resolve(response.body ?? {});
+        if (response.success) p.resolve(response.body as any);
         else
           p.reject(new Error(response.message || `DAP error for ${p.command}`));
       }
@@ -53,15 +65,18 @@ export class DapSession extends EventEmitter {
     }
   }
 
-  request<T = any>(command: string, args?: any): Promise<T> {
+  request<C extends DapCommand>(
+    command: C,
+    args: RequestArgumentsMap[C],
+  ): Promise<C extends keyof ResponseBodyMap ? ResponseBodyMap[C] : unknown> {
     const request_seq = this.seq++;
-    const req: Request = {
+    const req: Request<C> = {
       seq: request_seq,
       type: "request",
-      command: command as any,
+      command,
       arguments: args,
     };
-    return new Promise<T>((resolve, reject) => {
+    return new Promise<any>((resolve, reject) => {
       this.pending.set(request_seq, { resolve, reject, command });
       this.transport.send(req);
     });

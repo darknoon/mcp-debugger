@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 const pexecFile = promisify(execFile);
 
-export async function ensureDebugpy(): Promise<{ debugpyWheel: string }> {
+export async function ensureDebugpy(): Promise<{ debugpyWheel: string; debugpyPath: string }> {
   // Check if python3 is available (non-blocking)
   try {
     await pexecFile("python3", ["--version"]);
@@ -111,5 +111,44 @@ export async function ensureDebugpy(): Promise<{ debugpyWheel: string }> {
   }
 
   console.error("[debugpy] Verified debugpy wheel SHA256");
-  return { debugpyWheel };
+
+  // Ensure the wheel is installed/extracted to a directory for import
+  const debugpyPath = join(debugpyDir, "debugpy_site");
+  const installedMarker = join(debugpyPath, "debugpy", "__init__.py");
+
+  if (!existsSync(installedMarker)) {
+    console.error("[debugpy] Installing wheel into local path...");
+    try {
+      await pexecFile("python3", [
+        "-m",
+        "pip",
+        "install",
+        "--no-deps",
+        "--upgrade",
+        "--target",
+        debugpyPath,
+        debugpyWheel,
+      ]);
+    } catch (e) {
+      console.error(
+        `[debugpy] pip install failed (${(e as Error).message}); falling back to extraction...`,
+      );
+      const py = `
+import os, zipfile
+wheel = r'''${debugpyWheel}'''
+target = r'''${debugpyPath}'''
+os.makedirs(target, exist_ok=True)
+with zipfile.ZipFile(wheel) as zf:
+    zf.extractall(target)
+`;
+      await pexecFile("python3", ["-c", py]);
+    }
+    if (!existsSync(installedMarker)) {
+      throw new Error(
+        "Failed to install debugpy locally; missing package after install.",
+      );
+    }
+  }
+
+  return { debugpyWheel, debugpyPath };
 }

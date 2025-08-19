@@ -60,7 +60,7 @@ Arguments to start the process. Is NOT processed by Bash so cannot contain varia
     let adapterID: string = "";
 
     if (type === "debugpy") {
-      const { debugpyWheel } = await ensureDebugpy();
+      const { debugpyPath } = await ensureDebugpy();
       const debugpyArgs = [
         "-m",
         "debugpy",
@@ -74,7 +74,7 @@ Arguments to start the process. Is NOT processed by Bash so cannot contain varia
       child = spawn("python3", debugpyArgs, {
         cwd: cwd || process.cwd(),
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, PYTHONPATH: debugpyWheel },
+        env: { ...process.env, PYTHONPATH: debugpyPath },
       });
       adapterID = "debugpy";
     } else {
@@ -208,16 +208,6 @@ Arguments to start the process. Is NOT processed by Bash so cannot contain varia
       console.error(`[dap stderr]: ${data.toString()}`);
     });
 
-    const initializedPromise = new Promise<void>((resolve) => {
-      const onEvent = (e: any) => {
-        if (e.type === "event" && e.event === "initialized") {
-          sess.off("event", onEvent);
-          resolve();
-        }
-      };
-      sess.on("event", onEvent);
-    });
-
     try {
       await sess.request("initialize", {
         clientID: "mcp-debugger",
@@ -229,46 +219,34 @@ Arguments to start the process. Is NOT processed by Bash so cannot contain varia
       throw new Error(`Failed to initialize DAP session: ${error}`);
     }
 
-    // Wait for 'initialized' event before configuration
-    await initializedPromise;
+    void sess
+      .request("attach", {
+        connect: { host, port },
+      })
+      .then(() => {
+        sess.started = true;
+      })
+      .catch((error) => {
+        console.error("Failed to attach to debug session:", error);
+      });
 
-    // Send configurationDone after any future configuration steps (breakpoints etc.)
-    await sess.request("configurationDone", {} as any);
+    // If lldb-rust, emulate rust-lldb helpers by sourcing Rust lldb scripts.
+    // https://github.com/helix-editor/helix/wiki/Debugger-Configurations#configuration-for-rust
+    if (type === "lldb-rust") {
+      try {
+        const sysroot = await getRustSysroot();
+        const { importCmd, sourceCmd } = getRustLldbInitCommands(sysroot);
 
-    if (adapterID === "debugpy") {
-      // Attach to debugpy server
-      void sess
-        .request("attach", {
-          connect: { host, port },
-        })
-        .then(() => {
-          sess.started = true;
-        })
-        .catch((error) => {
-          console.error("Failed to attach to debug session:", error);
+        await sess.request("evaluate", {
+          expression: importCmd,
+          context: "repl",
         });
-    } else {
-      // lldb-dap has already launched the target
-      sess.started = true;
-
-      // If lldb-rust, emulate rust-lldb helpers by sourcing Rust lldb scripts.
-      // https://github.com/helix-editor/helix/wiki/Debugger-Configurations#configuration-for-rust
-      if (type === "lldb-rust") {
-        try {
-          const sysroot = await getRustSysroot();
-          const { importCmd, sourceCmd } = getRustLldbInitCommands(sysroot);
-
-          await sess.request("evaluate", {
-            expression: importCmd,
-            context: "repl",
-          });
-          await sess.request("evaluate", {
-            expression: sourceCmd,
-            context: "repl",
-          });
-        } catch (e) {
-          console.error(`[lldb-rust] Failed to source Rust lldb helpers: ${e}`);
-        }
+        await sess.request("evaluate", {
+          expression: sourceCmd,
+          context: "repl",
+        });
+      } catch (e) {
+        console.error(`[lldb-rust] Failed to source Rust lldb helpers: ${e}`);
       }
     }
 

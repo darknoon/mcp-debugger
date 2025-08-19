@@ -1,3 +1,6 @@
+import { installErrorFileLogger } from "./util/logger";
+installErrorFileLogger();
+
 import { runServerStdio } from "./mcp/server";
 
 import "./mcp/debuggerRun";

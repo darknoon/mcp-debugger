@@ -58,7 +58,6 @@ server.tool(
 
     return jsonContent({
       success: true,
-      command: "next",
       threadId: targetThreadId,
       response,
     });

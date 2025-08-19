@@ -58,7 +58,6 @@ server.tool(
 
     return jsonContent({
       success: true,
-      command: "stepIn",
       threadId: targetThreadId,
       response,
     });

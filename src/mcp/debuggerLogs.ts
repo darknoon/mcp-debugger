@@ -1,6 +1,6 @@
 import z from "zod";
 
-import { jsonContent, server, sessions } from "./server";
+import { yamlContent, server, sessions } from "./server";
 
 server.tool(
   "debuggerLogs",
@@ -48,10 +48,10 @@ server.tool(
 
     // Format logs as a nice string
     let formattedOutput = "";
-    
+
     // Add header with metadata
     formattedOutput += `=== Debugger Logs (${since + 1}-${since + paginatedLogs.length} of ${logs.length}) ===\n`;
-    
+
     if (paginatedLogs.length === 0) {
       formattedOutput += "No logs available";
       if (type !== "all") {
@@ -61,12 +61,15 @@ server.tool(
     } else {
       // Format each log entry
       paginatedLogs.forEach((log, index) => {
-        const timestamp = new Date(log.timestamp).toISOString().split('T')[1].split('.')[0];
+        const timestamp = new Date(log.timestamp)
+          .toISOString()
+          .split("T")[1]
+          .split(".")[0];
         const lineNumber = since + index + 1;
         const typeLabel = log.type === "stdout" ? "[OUT]" : "[ERR]";
-        
+
         // Split multi-line output and format each line
-        const lines = log.data.split('\n');
+        const lines = log.data.split("\n");
         lines.forEach((line, lineIndex) => {
           if (line.trim()) {
             if (lineIndex === 0) {
@@ -79,14 +82,14 @@ server.tool(
         });
       });
     }
-    
+
     // Add footer if there are more logs
     if (since + paginatedLogs.length < logs.length) {
       formattedOutput += `\n... ${logs.length - since - paginatedLogs.length} more log entries available (use since=${since + paginatedLogs.length}) ...`;
     }
 
-    return jsonContent({
-      output: formattedOutput
+    return yamlContent({
+      output: formattedOutput,
     });
   },
 );

@@ -1,4 +1,5 @@
 import fs from "fs";
+import { homedir } from "os";
 import path from "path";
 import { inspect } from "util";
 
@@ -37,7 +38,9 @@ function rotateIfNeeded(filePath: string, maxBytes: number) {
     const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
     if (stat && stat.size > maxBytes) {
       const rotated = `${filePath}.1`;
-      try { fs.unlinkSync(rotated); } catch {}
+      try {
+        fs.unlinkSync(rotated);
+      } catch {}
       fs.renameSync(filePath, rotated);
     }
   } catch {}
@@ -47,7 +50,10 @@ export function installErrorFileLogger(opts: LoggerOptions = {}) {
   if (installed) return;
   installed = true;
 
-  const logPath = opts.file || process.env.MCP_DEBUGGER_LOG || path.join(process.cwd(), "mcp-debugger.log");
+  const logPath =
+    opts.file ||
+    process.env.MCP_DEBUGGER_LOG ||
+    path.join(homedir(), ".mcp-debugger", "output.log");
   const maxBytes = opts.maxBytes ?? 5 * 1024 * 1024; // 5 MB
 
   ensureDirFor(logPath);
@@ -56,7 +62,9 @@ export function installErrorFileLogger(opts: LoggerOptions = {}) {
 
   console.error = (...args: any[]) => {
     // always print to stderr as before
-    try { origError(...args); } catch {}
+    try {
+      origError(...args);
+    } catch {}
 
     // append to file
     try {

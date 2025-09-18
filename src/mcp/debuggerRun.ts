@@ -2,7 +2,7 @@ import z from "zod";
 import { spawn } from "child_process";
 import getPort from "get-port";
 
-import { jsonContent, server, sessions } from "./server";
+import { yamlContent, server, sessions } from "./server";
 import { TcpTransport } from "../dap/transport";
 import { DapSession } from "../dap/session";
 import { ensureDebugpy } from "../util/debugpy";
@@ -250,7 +250,7 @@ Arguments to start the process. Is NOT processed by Bash so cannot contain varia
       }
     }
 
-    return jsonContent({
+    return yamlContent({
       sessionId: sess.id,
     });
   },

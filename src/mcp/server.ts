@@ -1,12 +1,14 @@
+import * as YAML from "yaml";
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 import { SessionRegistry } from "../dap/session";
 
-export function jsonContent(json: any): CallToolResult {
+export function yamlContent(json: any): CallToolResult {
   return {
-    content: [{ type: "text", text: JSON.stringify(json, null, 2) }],
+    content: [{ type: "text", text: YAML.stringify(json, null, 2) }],
   } as const;
 }
 

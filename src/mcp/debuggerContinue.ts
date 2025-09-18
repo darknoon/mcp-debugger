@@ -1,6 +1,6 @@
 import z from "zod";
 
-import { jsonContent, server, sessions } from "./server";
+import { yamlContent, server, sessions } from "./server";
 
 server.tool(
   "debuggerContinue",
@@ -46,7 +46,7 @@ server.tool(
       response = await session.request("continue", { threadId });
     }
 
-    return jsonContent({
+    return yamlContent({
       success: true,
       response,
     });

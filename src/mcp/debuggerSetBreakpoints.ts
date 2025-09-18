@@ -2,7 +2,7 @@ import z from "zod";
 import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 
-import { jsonContent, server, sessions } from "./server";
+import { yamlContent, server, sessions } from "./server";
 
 server.tool(
   "debuggerSetBreakpoints",
@@ -85,7 +85,7 @@ server.tool(
       })),
     });
 
-    return jsonContent({
+    return yamlContent({
       success: true,
       filePath: absolutePath,
       breakpointLines: breakpointLines.map((bp) => ({

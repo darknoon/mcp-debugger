@@ -1,7 +1,7 @@
 import z from "zod";
 import { resolve } from "path";
 
-import { jsonContent, server, sessions } from "./server";
+import { yamlContent, server, sessions } from "./server";
 import { existsSync } from "fs";
 
 server.tool(
@@ -43,7 +43,7 @@ server.tool(
       breakpoints: [],
     });
 
-    return jsonContent({
+    return yamlContent({
       success: true,
       filePath: absolutePath,
       message: `All breakpoints cleared from ${absolutePath}`,

@@ -1,6 +1,6 @@
 import z from "zod";
 
-import { jsonContent, server, sessions } from "./server";
+import { yamlContent, server, sessions } from "./server";
 
 server.tool(
   "debuggerWaitUntilBreakpoint",
@@ -75,7 +75,7 @@ server.tool(
     const currentState = isCurrentlyStopped();
     if (currentState.stopped) {
       if (currentState.reason === "terminated") {
-        return jsonContent({
+        return yamlContent({
           success: true,
           reason: "terminated",
           elapsed: 0,
@@ -85,7 +85,7 @@ server.tool(
       }
 
       const stoppedBody = currentState.event?.body as any;
-      return jsonContent({
+      return yamlContent({
         success: true,
         reason: stoppedBody?.reason || "stopped",
         elapsed: 0,
@@ -104,7 +104,7 @@ server.tool(
         // Check for timeout
         if (elapsed >= timeout) {
           resolve(
-            jsonContent({
+            yamlContent({
               success: false,
               reason: "timeout",
               elapsed,
@@ -119,7 +119,7 @@ server.tool(
         if (state.stopped) {
           if (state.reason === "terminated") {
             resolve(
-              jsonContent({
+              yamlContent({
                 success: true,
                 reason: "terminated",
                 elapsed,
@@ -131,7 +131,7 @@ server.tool(
 
           const stoppedBody = state.event?.body as any;
           resolve(
-            jsonContent({
+            yamlContent({
               success: true,
               reason: stoppedBody?.reason || "stopped",
               elapsed,

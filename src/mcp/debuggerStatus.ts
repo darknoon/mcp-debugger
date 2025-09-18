@@ -1,7 +1,7 @@
 import z from "zod";
 import { readFileSync } from "fs";
 
-import { jsonContent, server, sessions } from "./server";
+import { yamlContent, server, sessions } from "./server";
 
 server.tool(
   "debuggerStatus",
@@ -45,7 +45,7 @@ server.tool(
         status.exitCode = exitBody.exitCode;
       }
 
-      return jsonContent(status);
+      return yamlContent(status);
     }
 
     // Check if currently stopped and determine program state
@@ -176,6 +176,6 @@ server.tool(
       }
     }
 
-    return jsonContent(status);
+    return yamlContent(status);
   },
 );

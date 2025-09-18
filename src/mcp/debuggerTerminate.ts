@@ -1,6 +1,6 @@
 import z from "zod";
 
-import { jsonContent, server, sessions } from "./server";
+import { yamlContent, server, sessions } from "./server";
 
 server.tool(
   "debuggerTerminate",
@@ -49,7 +49,7 @@ server.tool(
     session.close();
     sessions.delete(actualSessionId);
 
-    return jsonContent({
+    return yamlContent({
       success: true,
       message: `Session ${actualSessionId} terminated`,
     });

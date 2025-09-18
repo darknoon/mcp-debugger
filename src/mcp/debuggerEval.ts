@@ -1,6 +1,6 @@
 import z from "zod";
 
-import { jsonContent, server, sessions } from "./server";
+import { yamlContent, server, sessions } from "./server";
 
 server.tool(
   "debuggerEval",
@@ -61,14 +61,14 @@ server.tool(
         context: "repl",
       });
 
-      return jsonContent({
+      return yamlContent({
         success: true,
         result: response.result,
         type: response.type,
         variablesReference: response.variablesReference,
       });
     } catch (error) {
-      return jsonContent({
+      return yamlContent({
         success: false,
         error: String(error),
         expression,

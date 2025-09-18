@@ -1,7 +1,7 @@
-import fs from "fs";
-import { homedir } from "os";
-import path from "path";
-import { inspect } from "util";
+import fs from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
+import { inspect } from "node:util";
 
 let installed = false;
 

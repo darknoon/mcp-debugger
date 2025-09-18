@@ -1,13 +1,104 @@
 import z from "zod";
-import { spawn } from "child_process";
+import { ChildProcess, spawn } from "child_process";
 import getPort from "get-port";
 
 import { yamlContent, server, sessions } from "./server";
+
 import { TcpTransport } from "../dap/transport";
 import { DapSession } from "../dap/session";
+
 import { ensureDebugpy } from "../util/debugpy";
-import { ensureLLDB, LldbFlavor } from "../util/lldb";
-import { getRustSysroot, getRustLldbInitCommands } from "../util/rustc";
+import { ensureLLDB } from "../util/lldb";
+import { ensureRustCompiler } from "../util/rustc";
+
+const DebuggerTypeSchema = z.enum([
+  "debugpy",
+  "lldb",
+  "lldb-rust",
+  "lldb-swift",
+]);
+type DebuggerType = z.infer<typeof DebuggerTypeSchema>;
+
+function isTypeDebugpy(type: DebuggerType): type is "debugpy" {
+  return type === "debugpy";
+}
+
+function isTypeLLDB(
+  type: DebuggerType,
+): type is "lldb" | "lldb-rust" | "lldb-swift" {
+  return type === "lldb" || type === "lldb-rust" || type === "lldb-swift";
+}
+
+enum DAPRequestType {
+  LAUNCH,
+  ATTACH,
+}
+
+async function spawnDebugger(
+  debuggerType: DebuggerType,
+  opts: {
+    cwd: string | undefined;
+    program: string;
+    programArgs: string[];
+    host: string;
+    port: number;
+  },
+): Promise<{
+  child: ChildProcess;
+  adapterID: string;
+  initialRequestType: DAPRequestType;
+}> {
+  const { cwd, program, programArgs, host, port } = opts;
+
+  if (isTypeDebugpy(debuggerType)) {
+    const { debugpyPath } = await ensureDebugpy();
+    const debugpyArgs = [
+      "-m",
+      "debugpy",
+      "--wait-for-client",
+      "--listen",
+      `${port}`,
+      "--configure-subProcess",
+      "False",
+      program,
+      ...programArgs,
+    ];
+
+    const child = spawn("python3", debugpyArgs, {
+      cwd: cwd || process.cwd(),
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, PYTHONPATH: debugpyPath },
+    });
+
+    return {
+      child,
+      adapterID: "debugpy",
+      initialRequestType: DAPRequestType.ATTACH,
+    };
+  }
+
+  if (isTypeLLDB(debuggerType)) {
+    const { lldbDap, lldbFeatures } = await ensureLLDB(debuggerType);
+    const lldbArgs = lldbFeatures.usePort
+      ? ["--port", String(port)]
+      : lldbFeatures.useConnection
+        ? ["--connection", `listen://${host}:${port}`]
+        : [];
+
+    const child = spawn(lldbDap, lldbArgs, {
+      cwd: cwd || process.cwd(),
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    return {
+      child,
+      adapterID: "lldb-dap",
+      initialRequestType: DAPRequestType.LAUNCH,
+    };
+  }
+
+  throw new Error("Unsupported debugger type");
+}
 
 server.tool(
   "debuggerRun",
@@ -52,88 +143,20 @@ Arguments to start the process. Is NOT processed by Bash so cannot contain varia
       ),
   },
   async ({ type, args = [], cwd }) => {
-    // Get a free port.
+    if (args.length === 0) {
+      throw new Error("No arguments provided");
+    }
+
+    const [program, ...programArgs] = args;
     const host = "127.0.0.1";
     const port = await getPort();
 
-    let child = null as ReturnType<typeof spawn> | null;
-    let adapterID: string = "";
-
-    if (type === "debugpy") {
-      const { debugpyPath } = await ensureDebugpy();
-      const debugpyArgs = [
-        "-m",
-        "debugpy",
-        "--wait-for-client",
-        "--listen",
-        `${port}`,
-        "--configure-subProcess",
-        "False",
-        ...args,
-      ];
-      child = spawn("python3", debugpyArgs, {
-        cwd: cwd || process.cwd(),
-        stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, PYTHONPATH: debugpyPath },
-      });
-      adapterID = "debugpy";
-    } else {
-      const flavor = type as LldbFlavor;
-      const { lldbDap } = await ensureLLDB(flavor);
-
-      // We don't know the launch target; assume args[0] is the program and rest are program args.
-      if (args.length === 0) {
-        throw new Error(
-          "For lldb*, provide the program to launch as the first argument and its arguments after it.",
-        );
-      }
-      const program = args[0];
-      const programArgs = args.slice(1);
-
-      const lldbArgs = [
-        "--port",
-        String(port),
-        "--wait-for-debugger",
-        "--launch-target",
-        program,
-        "--",
-        ...programArgs,
-      ];
-
-      // Spawn via shell if the command contains spaces (xcrun -f lldb-dap)
-      child = spawn(lldbDap, lldbArgs, {
-        cwd: cwd || process.cwd(),
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      adapterID = "lldb";
-    }
-
-    // Store stdout/stderr buffers temporarily until session is created
-    const tempLogs: {
-      type: "stdout" | "stderr";
-      timestamp: number;
-      data: string;
-    }[] = [];
-
-    // Handle process output
-    child!.stdout?.on("data", (data: Buffer) => {
-      const log = {
-        type: "stdout" as const,
-        timestamp: Date.now(),
-        data: data.toString(),
-      };
-      tempLogs.push(log);
-      console.error(`[dap stdout]: ${data.toString()}`);
-    });
-
-    child!.stderr?.on("data", (data: Buffer) => {
-      const log = {
-        type: "stderr" as const,
-        timestamp: Date.now(),
-        data: data.toString(),
-      };
-      tempLogs.push(log);
-      console.error(`[dap stderr]: ${data.toString()}`);
+    const { child, adapterID, initialRequestType } = await spawnDebugger(type, {
+      cwd,
+      program,
+      programArgs,
+      host,
+      port,
     });
 
     child!.on("error", (error: Error) => {
@@ -183,9 +206,8 @@ Arguments to start the process. Is NOT processed by Bash so cannot contain varia
     sess.process = child || undefined;
     // Store the cwd for relative path resolution in breakpoint commands
     sess.cwd = cwd || process.cwd();
-
     // Transfer temp logs to session and set up continuous logging
-    sess.processLogs = tempLogs;
+    sess.processLogs = [];
 
     // Replace the listeners to log to session instead of temp array
     child!.stdout?.removeAllListeners("data");
@@ -219,23 +241,34 @@ Arguments to start the process. Is NOT processed by Bash so cannot contain varia
       throw new Error(`Failed to initialize DAP session: ${error}`);
     }
 
-    void sess
-      .request("attach", {
-        connect: { host, port },
-      })
-      .then(() => {
-        sess.started = true;
-      })
-      .catch((error) => {
-        console.error("Failed to attach to debug session:", error);
+    if (initialRequestType == DAPRequestType.ATTACH) {
+      void sess
+        .request("attach", {
+          connect: { host, port },
+        })
+        .then(() => {
+          sess.started = true;
+        })
+        .catch((error) => {
+          console.error("Failed to attach to debug session:", error);
+        });
+    } else if (initialRequestType == DAPRequestType.LAUNCH) {
+      void sess.request("launch", {
+        program,
+        args: programArgs,
+        cwd: cwd || process.cwd(),
       });
+    }
 
     // If lldb-rust, emulate rust-lldb helpers by sourcing Rust lldb scripts.
+    //
+    // Reference:
     // https://github.com/helix-editor/helix/wiki/Debugger-Configurations#configuration-for-rust
     if (type === "lldb-rust") {
       try {
-        const sysroot = await getRustSysroot();
-        const { importCmd, sourceCmd } = getRustLldbInitCommands(sysroot);
+        const {
+          rustLLDBInitCommands: { importCmd, sourceCmd },
+        } = await ensureRustCompiler();
 
         await sess.request("evaluate", {
           expression: importCmd,

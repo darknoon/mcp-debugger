@@ -1,18 +1,23 @@
-import { createHash } from "crypto";
-import { readFileSync, existsSync, mkdirSync, createWriteStream } from "fs";
-import { join } from "path";
-import { homedir } from "os";
-import https from "https";
-import { execFile } from "child_process";
+import { createHash } from "node:crypto";
+import {
+  readFileSync,
+  existsSync,
+  mkdirSync,
+  createWriteStream,
+} from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
+import https from "node:https";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 const pexecFile = promisify(execFile);
 
-export async function ensureDebugpy(): Promise<{ debugpyWheel: string; debugpyPath: string }> {
+export async function ensureDebugpy() {
   // Check if python3 is available (non-blocking)
   try {
     await pexecFile("python3", ["--version"]);
-  } catch (_error) {
+  } catch {
     throw new Error(
       "Python 3 is not available on the system PATH. " +
         "Please ensure Python 3 is installed and accessible as 'python3' command. " +

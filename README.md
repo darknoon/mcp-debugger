@@ -1,4 +1,4 @@
-# MCP Debugger (`mcp-debugger-dap`)
+# MCP Debugger
 
 ![Image demonstrating the debugger](./image.png)
 

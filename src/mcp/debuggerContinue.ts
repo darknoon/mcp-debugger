@@ -24,11 +24,16 @@ server.tool(
       );
     }
 
+    // Capture event count BEFORE sending request to avoid race condition:
+    // If we set it after, a "stopped" event might arrive before we update
+    // the counter, causing debuggerStatus to incorrectly report "running".
+    const eventCountBeforeRequest = session.readEvents(0, 100000).events.length;
+
     let response;
     if (!session.started) {
       response = await session.request("configurationDone", {});
       session.started = true;
-      session.eventCountAtLastContinue = session.readEvents(0, 100000).events.length;
+      session.eventCountAtLastContinue = eventCountBeforeRequest;
     } else {
       // Get the thread ID from the last stopped event
       const lastStoppedEvent = session
@@ -45,7 +50,7 @@ server.tool(
       }
 
       response = await session.request("continue", { threadId });
-      session.eventCountAtLastContinue = session.readEvents(0, 100000).events.length;
+      session.eventCountAtLastContinue = eventCountBeforeRequest;
     }
 
     return yamlContent({

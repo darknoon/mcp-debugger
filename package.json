@@ -1,6 +1,6 @@
 {
   "name": "mcp-debugger-dap",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP for debugging with LLDB (C, C++, Rust, Swift) and Python",
   "main": "src/index.ts",
   "bin": {

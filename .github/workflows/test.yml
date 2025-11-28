@@ -31,7 +31,7 @@ jobs:
       - name: Install LLDB and Clang
         run: |
           sudo apt-get update
-          sudo apt-get install -y lldb clang lldb-dev
+          sudo apt-get install -y lldb clang
 
       - name: Verify LLDB-DAP
         run: |

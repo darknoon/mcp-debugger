@@ -24,6 +24,24 @@ server.tool(
             .describe(
               "The string to search for in the file to determine breakpoint location. This must not span multiple lines.",
             ),
+          condition: z
+            .string()
+            .optional()
+            .describe(
+              "An expression that must evaluate to true for the breakpoint to trigger",
+            ),
+          hitCondition: z
+            .string()
+            .optional()
+            .describe(
+              "Expression for hit count condition (e.g., '> 5', '== 10', '% 2')",
+            ),
+          logMessage: z
+            .string()
+            .optional()
+            .describe(
+              "Message to log instead of breaking (logpoint). Can contain {expressions} in braces.",
+            ),
         }),
       )
       .describe("Array of breakpoints to set in the file"),
@@ -73,6 +91,9 @@ server.tool(
       return {
         line: lineNumber,
         old_str: bp.old_str,
+        condition: bp.condition,
+        hitCondition: bp.hitCondition,
+        logMessage: bp.logMessage,
       };
     });
 
@@ -82,6 +103,9 @@ server.tool(
       },
       breakpoints: breakpointLines.map((bp) => ({
         line: bp.line,
+        condition: bp.condition,
+        hitCondition: bp.hitCondition,
+        logMessage: bp.logMessage,
       })),
     });
 
@@ -91,6 +115,9 @@ server.tool(
       breakpointLines: breakpointLines.map((bp) => ({
         line: bp.line,
         searchString: bp.old_str,
+        condition: bp.condition,
+        hitCondition: bp.hitCondition,
+        logMessage: bp.logMessage,
       })),
       breakpoints: response.breakpoints,
     });

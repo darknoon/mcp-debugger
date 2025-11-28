@@ -28,14 +28,26 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install LLDB and Clang
+      - name: Install LLVM/LLDB with lldb-dap
         run: |
+          # Add LLVM apt repository for latest version with lldb-dap
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-18 main" | sudo tee /etc/apt/sources.list.d/llvm.list
           sudo apt-get update
-          sudo apt-get install -y lldb clang
+          sudo apt-get install -y lldb-18 clang-18 lldb-tools-18
+          # Create symlinks so lldb-dap is on PATH
+          sudo ln -sf /usr/bin/lldb-dap-18 /usr/bin/lldb-dap || true
+          sudo ln -sf /usr/bin/clang-18 /usr/bin/clang || true
+          sudo ln -sf /usr/bin/clang++-18 /usr/bin/clang++ || true
 
       - name: Verify LLDB-DAP
         run: |
-          which lldb-dap || which lldb-vscode || echo "lldb-dap not found, will use fallback"
+          echo "=== LLDB-DAP location ==="
+          which lldb-dap
+          echo "=== LLDB-DAP version ==="
+          lldb-dap --version
+          echo "=== LLDB-DAP help ==="
+          lldb-dap --help
 
       - name: Install dependencies
         run: bun install

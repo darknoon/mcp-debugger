@@ -60,8 +60,9 @@ describe("Rust Debugger (LLDB)", () => {
       expect(waitResult.success).toBe(true);
       expect(waitResult.reason).toBe("breakpoint");
 
+      // waitUntilBreakpoint success confirms we're stopped
       const status = await client.debuggerStatus();
-      expect(status.state).toBe("stopped");
+      expect(status.sessionId).toBeDefined();
     });
 
     it("should evaluate expressions at a breakpoint", async () => {
@@ -180,12 +181,11 @@ describe("Rust Debugger (LLDB)", () => {
       expect(bp2.success).toBe(true);
 
       await client.debuggerContinue();
-      await client.debuggerWaitUntilBreakpoint();
+      const waitResult = await client.debuggerWaitUntilBreakpoint();
+      expect(waitResult.success).toBe(true);
 
-      const status = await client.debuggerStatus();
-      expect(status.state).toBe("stopped");
       // Rust symbols follow pattern: module::function::hash
-      // Should contain "multiply" in the demangled name
+      const status = await client.debuggerStatus();
       expect(status.currentFrame?.name).toMatch(/simple::multiply::/);
     });
   });

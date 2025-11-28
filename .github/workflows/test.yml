@@ -93,13 +93,6 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Enable debugging on macOS
-        run: |
-          # Enable developer tools for debugging
-          sudo DevToolsSecurity -enable
-          # Add current user to developer group
-          sudo dscl . append /Groups/_developer GroupMembership $(whoami)
-
       - name: Debug Xcode/LLDB environment
         run: |
           echo "=== Xcode version ==="
@@ -125,5 +118,11 @@ jobs:
         run: cargo build
         working-directory: tests/fixtures/rust/simple
 
-      - name: Run all tests
-        run: bun run test
+      - name: Run Python tests
+        run: bun run test:python
+
+      - name: Run C++ tests
+        run: bun run test:cpp
+
+      - name: Run Rust tests
+        run: bun run test:rust

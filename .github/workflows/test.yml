@@ -74,9 +74,23 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Verify LLDB-DAP
+      - name: Debug Xcode/LLDB environment
         run: |
-          xcrun --find lldb-dap || xcrun --find lldb-vscode || echo "lldb-dap not found"
+          echo "=== Xcode version ==="
+          xcodebuild -version
+          echo "=== Swift version ==="
+          swift --version
+          echo "=== LLDB-DAP location ==="
+          LLDB_DAP=$(xcrun --find lldb-dap 2>/dev/null || echo "")
+          echo "lldb-dap path: $LLDB_DAP"
+          if [ -n "$LLDB_DAP" ]; then
+            echo "=== LLDB-DAP version ==="
+            "$LLDB_DAP" --version
+            echo "=== LLDB-DAP help ==="
+            "$LLDB_DAP" --help
+          else
+            echo "lldb-dap not found!"
+          fi
 
       - name: Install dependencies
         run: bun install

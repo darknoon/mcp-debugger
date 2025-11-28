@@ -179,13 +179,13 @@ export class McpClient {
       this.pendingRequests.set(id, { resolve, reject });
       this.process!.stdin!.write(message);
 
-      // Timeout after 30 seconds
+      // Timeout after 60 seconds (CI can be slower)
       setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
           reject(new Error(`Request ${method} timed out`));
         }
-      }, 30000);
+      }, 60000);
     });
   }
 

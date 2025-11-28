@@ -33,7 +33,7 @@ server.tool(
     let targetFrameId = frameId;
     if (!targetFrameId) {
       const lastStoppedEvent = session
-        .readEvents(0, 1000)
+        .readEvents(0, 100000)
         .events.reverse()
         .find((e) => e.event === "stopped");
 

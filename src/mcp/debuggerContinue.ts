@@ -28,6 +28,7 @@ server.tool(
     if (!session.started) {
       response = await session.request("configurationDone", {});
       session.started = true;
+      session.eventCountAtLastContinue = session.readEvents(0, 100000).events.length;
     } else {
       // Get the thread ID from the last stopped event
       const lastStoppedEvent = session
@@ -44,6 +45,7 @@ server.tool(
       }
 
       response = await session.request("continue", { threadId });
+      session.eventCountAtLastContinue = session.readEvents(0, 100000).events.length;
     }
 
     return yamlContent({

@@ -11,6 +11,10 @@ import {
   ResponseBodyMap,
 } from "./types";
 
+export interface TimestampedEvent extends Event {
+  timestamp: number;
+}
+
 let sessionCounter = 0;
 
 export interface PendingReq<T = any> {
@@ -23,6 +27,7 @@ export class DapSession extends EventEmitter {
   readonly id: string;
 
   started: boolean = false;
+  eventCountAtLastContinue: number | null = null;
   process?: ChildProcess;
   processLogs: {
     type: "stdout" | "stderr";
@@ -33,7 +38,7 @@ export class DapSession extends EventEmitter {
 
   private seq = 1;
   private pending = new Map<number, PendingReq<any>>();
-  private events: Event[] = [];
+  private events: TimestampedEvent[] = [];
 
   constructor(private transport: Transport) {
     super();
@@ -59,8 +64,9 @@ export class DapSession extends EventEmitter {
     }
     if (m.type === "event") {
       const event = m as Event;
-      this.events.push(event);
-      this.emit("event", event);
+      const timestampedEvent: TimestampedEvent = { ...event, timestamp: Date.now() };
+      this.events.push(timestampedEvent);
+      this.emit("event", timestampedEvent);
       return;
     }
   }
@@ -85,7 +91,7 @@ export class DapSession extends EventEmitter {
   readEvents(
     since: number = 0,
     limit: number = 100,
-  ): { events: Event[]; nextSeq: number } {
+  ): { events: TimestampedEvent[]; nextSeq: number } {
     const slice = this.events.slice(since, since + limit);
     return { events: slice, nextSeq: since + slice.length };
   }

@@ -70,8 +70,16 @@ server.tool(
     }
 
     // Determine the state
-    if (!hasStarted) {
+    // Check if we sent a continue request more recently than the last stopped event
+    const continueIsMoreRecent =
+      session.eventCountAtLastContinue !== null &&
+      lastStoppedIndex < session.eventCountAtLastContinue;
+
+    if (!hasStarted && !session.eventCountAtLastContinue) {
       status.state = "not_started";
+    } else if (continueIsMoreRecent) {
+      // We sent a continue request after the last stopped event, so we're running
+      status.state = "running";
     } else if (
       lastStoppedEvent &&
       (!lastContinuedEvent || lastStoppedIndex > lastContinuedIndex)

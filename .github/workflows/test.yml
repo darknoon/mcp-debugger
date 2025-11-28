@@ -1,0 +1,89 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-linux:
+    name: Tests (Linux)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install LLDB and Clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lldb clang lldb-dev
+
+      - name: Verify LLDB-DAP
+        run: |
+          which lldb-dap || which lldb-vscode || echo "lldb-dap not found, will use fallback"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build Rust fixture
+        run: cargo build
+        working-directory: tests/fixtures/rust/simple
+
+      - name: Run Python tests
+        run: bun run test:python
+
+      - name: Run C++ tests
+        run: bun run test:cpp
+
+      - name: Run Rust tests
+        run: bun run test:rust
+
+  test-macos:
+    name: Tests (macOS)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify LLDB-DAP
+        run: |
+          xcrun --find lldb-dap || xcrun --find lldb-vscode || echo "lldb-dap not found"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build Rust fixture
+        run: cargo build
+        working-directory: tests/fixtures/rust/simple
+
+      - name: Run all tests
+        run: bun run test

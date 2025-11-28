@@ -6,7 +6,13 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun --hot src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun"
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:python": "vitest run tests/e2e/python.test.ts",
+    "test:cpp": "vitest run tests/e2e/cpp.test.ts",
+    "test:rust": "vitest run tests/e2e/rust.test.ts",
+    "test:swift": "vitest run tests/e2e/swift.test.ts"
   },
   "keywords": [],
   "author": "Andrew Pouliot",
@@ -20,7 +26,8 @@
   "devDependencies": {
     "@types/bun": "^1.2.20",
     "@types/node": "^24.3.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "^3.1.0"
   },
   "packageManager": "pnpm@10.8.1+sha512.c50088ba998c67b8ca8c99df8a5e02fd2ae2e2b29aaf238feaa9e124248d3f48f9fb6db2424949ff901cffbb5e0f0cc1ad6aedb602cd29450751d11c35023677"
 }

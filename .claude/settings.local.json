@@ -17,7 +17,8 @@
       "mcp__debugger__debuggerEval",
       "mcp__debugger__debuggerStep",
       "mcp__debugger__debuggerTerminate",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(timeout 5 bun run:*)"
     ],
     "deny": [],
     "ask": []

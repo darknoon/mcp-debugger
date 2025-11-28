@@ -5,3 +5,10 @@ node_modules/
 
 harness/src/harness.egg-info/
 harness/runs/
+
+# Test fixtures - compiled binaries
+tests/fixtures/cpp/simple
+tests/fixtures/cpp/simple.dSYM/
+tests/fixtures/swift/simple
+tests/fixtures/swift/simple.dSYM/
+tests/fixtures/rust/simple/target/

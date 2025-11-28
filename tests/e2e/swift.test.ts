@@ -152,7 +152,8 @@ describe.skipIf(!isMacOS)("Swift Debugger (LLDB)", () => {
 
       // Swift symbols are demangled to: functionName(_:_:) format
       const status = await client.debuggerStatus();
-      expect(status.currentFrame?.name).toMatch(/multiply\(_:_:\)/);
+      expect(status.currentFrame).toBeDefined();
+      expect(status.currentFrame!.name).toMatch(/multiply\(_:_:\)/);
     });
   });
 
@@ -204,7 +205,8 @@ describe.skipIf(!isMacOS)("Swift Debugger (LLDB)", () => {
 
       const status = await client.debuggerStatus();
       // Swift symbols are demangled to: functionName(_:_:) format
-      expect(status.currentFrame?.name).toMatch(/add\(_:_:\)/);
+      expect(status.currentFrame).toBeDefined();
+      expect(status.currentFrame!.name).toMatch(/add\(_:_:\)/);
     });
   });
 

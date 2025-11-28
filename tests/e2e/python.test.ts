@@ -147,7 +147,8 @@ describe("Python Debugger (debugpy)", () => {
 
       // Should be in the multiply function, not add
       const status = await client.debuggerStatus();
-      expect(status.currentFrame?.name).toContain("multiply");
+      expect(status.currentFrame).toBeDefined();
+      expect(status.currentFrame!.name).toContain("multiply");
     });
   });
 
@@ -200,7 +201,8 @@ describe("Python Debugger (debugpy)", () => {
 
       const status = await client.debuggerStatus();
       // Should now be inside the add function
-      expect(status.currentFrame?.name).toContain("add");
+      expect(status.currentFrame).toBeDefined();
+      expect(status.currentFrame!.name).toContain("add");
     });
   });
 

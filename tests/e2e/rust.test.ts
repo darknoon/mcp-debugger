@@ -186,7 +186,8 @@ describe("Rust Debugger (LLDB)", () => {
 
       // Rust symbols follow pattern: module::function::hash
       const status = await client.debuggerStatus();
-      expect(status.currentFrame?.name).toMatch(/simple::multiply::/);
+      expect(status.currentFrame).toBeDefined();
+      expect(status.currentFrame!.name).toMatch(/simple::multiply::/);
     });
   });
 
@@ -238,7 +239,8 @@ describe("Rust Debugger (LLDB)", () => {
 
       const status = await client.debuggerStatus();
       // Rust symbols follow pattern: module::function::hash
-      expect(status.currentFrame?.name).toMatch(/simple::add::/);
+      expect(status.currentFrame).toBeDefined();
+      expect(status.currentFrame!.name).toMatch(/simple::add::/);
     });
   });
 

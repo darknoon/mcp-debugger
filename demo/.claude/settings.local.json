@@ -1,21 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python:*)",
-      "mcp__debugger__debuggerTerminate",
+      "*",
       "mcp__debugger__debuggerRun",
       "mcp__debugger__debuggerSetBreakpoints",
-      "mcp__debugger__debuggerClearBreakpoints",
-      "mcp__debugger__debuggerStatus",
-      "mcp__debugger__debuggerStep",
-      "mcp__debugger__debuggerStepIn",
-      "mcp__debugger__debuggerStepOut",
-      "mcp__debugger__debuggerEval",
+      "mcp__debugger__debuggerContinue",
       "mcp__debugger__debuggerWaitUntilBreakpoint",
       "mcp__debugger__debuggerLogs",
-      "mcp__debugger__debuggerSources",
-      "mcp__debugger__debuggerContinue",
-      "mcp__debugger__debuggerWaitUntilBreakpoint"
+      "mcp__debugger__debuggerStatus",
+      "mcp__debugger__debuggerEval"
     ],
     "deny": [],
     "ask": []

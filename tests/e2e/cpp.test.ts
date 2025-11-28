@@ -148,9 +148,10 @@ describe("C++ Debugger (LLDB)", () => {
       const waitResult = await client.debuggerWaitUntilBreakpoint();
       expect(waitResult.success).toBe(true);
 
-      // Verify we're in the multiply function (implicitly confirms we're stopped)
+      // Verify we're in the multiply function
       const status = await client.debuggerStatus();
-      expect(status.currentFrame?.name).toContain("multiply");
+      expect(status.currentFrame).toBeDefined();
+      expect(status.currentFrame!.name).toContain("multiply");
     });
   });
 
@@ -201,7 +202,8 @@ describe("C++ Debugger (LLDB)", () => {
       await client.debuggerWaitUntilBreakpoint();
 
       const status = await client.debuggerStatus();
-      expect(status.currentFrame?.name).toContain("add");
+      expect(status.currentFrame).toBeDefined();
+      expect(status.currentFrame!.name).toContain("add");
     });
   });
 

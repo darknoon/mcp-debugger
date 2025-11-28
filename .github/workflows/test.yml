@@ -28,14 +28,33 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install LLDB and Clang
+      - name: Install LLVM/LLDB with lldb-dap
         run: |
+          # Add LLVM apt repository for latest version with lldb-dap
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          # ubuntu-latest is 24.04 (noble)
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-18 main" | sudo tee /etc/apt/sources.list.d/llvm.list
           sudo apt-get update
-          sudo apt-get install -y lldb clang
+          # lldb-dap is included in lldb-18 package, lldb-vscode was the old name
+          sudo apt-get install -y lldb-18 clang-18
+          # Find and symlink the lldb-dap binary (might be lldb-dap-18 or lldb-vscode-18)
+          if [ -f /usr/bin/lldb-dap-18 ]; then
+            sudo ln -sf /usr/bin/lldb-dap-18 /usr/bin/lldb-dap
+          elif [ -f /usr/bin/lldb-vscode-18 ]; then
+            sudo ln -sf /usr/bin/lldb-vscode-18 /usr/bin/lldb-dap
+          fi
+          sudo ln -sf /usr/bin/clang-18 /usr/bin/clang || true
+          sudo ln -sf /usr/bin/clang++-18 /usr/bin/clang++ || true
+          # List what we got
+          ls -la /usr/bin/lldb* || true
 
       - name: Verify LLDB-DAP
         run: |
-          which lldb-dap || which lldb-vscode || echo "lldb-dap not found, will use fallback"
+          echo "=== LLDB-DAP location ==="
+          which lldb-dap || which lldb-vscode || echo "Not found on PATH, checking /usr/bin..."
+          ls -la /usr/bin/lldb-dap* /usr/bin/lldb-vscode* 2>/dev/null || true
+          echo "=== LLDB-DAP version ==="
+          lldb-dap --version || lldb-vscode --version || echo "Cannot get version"
 
       - name: Install dependencies
         run: bun install
@@ -99,5 +118,11 @@ jobs:
         run: cargo build
         working-directory: tests/fixtures/rust/simple
 
-      - name: Run all tests
-        run: bun run test
+      - name: Run Python tests
+        run: bun run test:python
+
+      - name: Run C++ tests
+        run: bun run test:cpp
+
+      - name: Run Rust tests
+        run: bun run test:rust

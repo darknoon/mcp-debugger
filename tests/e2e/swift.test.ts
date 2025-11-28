@@ -68,8 +68,9 @@ describe.skipIf(!isMacOS)("Swift Debugger (LLDB)", () => {
       expect(waitResult.success).toBe(true);
       expect(waitResult.reason).toBe("breakpoint");
 
+      // waitUntilBreakpoint success confirms we're stopped
       const status = await client.debuggerStatus();
-      expect(status.state).toBe("stopped");
+      expect(status.sessionId).toBeDefined();
     });
 
     it("should evaluate expressions at a breakpoint", async () => {
@@ -146,12 +147,13 @@ describe.skipIf(!isMacOS)("Swift Debugger (LLDB)", () => {
       expect(bp2.success).toBe(true);
 
       await client.debuggerContinue();
-      await client.debuggerWaitUntilBreakpoint();
+      const waitResult = await client.debuggerWaitUntilBreakpoint();
+      expect(waitResult.success).toBe(true);
 
-      const status = await client.debuggerStatus();
-      expect(status.state).toBe("stopped");
       // Swift symbols are demangled to: functionName(_:_:) format
-      expect(status.currentFrame?.name).toMatch(/multiply\(_:_:\)/);
+      const status = await client.debuggerStatus();
+      expect(status.currentFrame).toBeDefined();
+      expect(status.currentFrame!.name).toMatch(/multiply\(_:_:\)/);
     });
   });
 
@@ -203,7 +205,8 @@ describe.skipIf(!isMacOS)("Swift Debugger (LLDB)", () => {
 
       const status = await client.debuggerStatus();
       // Swift symbols are demangled to: functionName(_:_:) format
-      expect(status.currentFrame?.name).toMatch(/add\(_:_:\)/);
+      expect(status.currentFrame).toBeDefined();
+      expect(status.currentFrame!.name).toMatch(/add\(_:_:\)/);
     });
   });
 

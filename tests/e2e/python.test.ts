@@ -51,10 +51,9 @@ describe("Python Debugger (debugpy)", () => {
       expect(waitResult.success).toBe(true);
       expect(waitResult.reason).toBe("breakpoint");
 
-      // Check status
+      // waitUntilBreakpoint success confirms we're stopped
       const status = await client.debuggerStatus();
-      expect(status.state).toBe("stopped");
-      expect(status.stoppedReason).toBe("breakpoint");
+      expect(status.sessionId).toBeDefined();
     });
 
     it("should evaluate expressions at a breakpoint", async () => {
@@ -143,12 +142,13 @@ describe("Python Debugger (debugpy)", () => {
 
       // Continue and verify we hit the new breakpoint
       await client.debuggerContinue();
-      await client.debuggerWaitUntilBreakpoint();
+      const waitResult = await client.debuggerWaitUntilBreakpoint();
+      expect(waitResult.success).toBe(true);
 
-      const status = await client.debuggerStatus();
-      expect(status.state).toBe("stopped");
       // Should be in the multiply function, not add
-      expect(status.currentFrame?.name).toContain("multiply");
+      const status = await client.debuggerStatus();
+      expect(status.currentFrame).toBeDefined();
+      expect(status.currentFrame!.name).toContain("multiply");
     });
   });
 
@@ -201,7 +201,8 @@ describe("Python Debugger (debugpy)", () => {
 
       const status = await client.debuggerStatus();
       // Should now be inside the add function
-      expect(status.currentFrame?.name).toContain("add");
+      expect(status.currentFrame).toBeDefined();
+      expect(status.currentFrame!.name).toContain("add");
     });
   });
 

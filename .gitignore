@@ -12,3 +12,5 @@ tests/fixtures/cpp/simple.dSYM/
 tests/fixtures/swift/simple
 tests/fixtures/swift/simple.dSYM/
 tests/fixtures/rust/simple/target/
+
+dist/index.js

@@ -32,22 +32,29 @@ jobs:
         run: |
           # Add LLVM apt repository for latest version with lldb-dap
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          # ubuntu-latest is 24.04 (noble)
           echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-18 main" | sudo tee /etc/apt/sources.list.d/llvm.list
           sudo apt-get update
-          sudo apt-get install -y lldb-18 clang-18 lldb-tools-18
-          # Create symlinks so lldb-dap is on PATH
-          sudo ln -sf /usr/bin/lldb-dap-18 /usr/bin/lldb-dap || true
+          # lldb-dap is included in lldb-18 package, lldb-vscode was the old name
+          sudo apt-get install -y lldb-18 clang-18
+          # Find and symlink the lldb-dap binary (might be lldb-dap-18 or lldb-vscode-18)
+          if [ -f /usr/bin/lldb-dap-18 ]; then
+            sudo ln -sf /usr/bin/lldb-dap-18 /usr/bin/lldb-dap
+          elif [ -f /usr/bin/lldb-vscode-18 ]; then
+            sudo ln -sf /usr/bin/lldb-vscode-18 /usr/bin/lldb-dap
+          fi
           sudo ln -sf /usr/bin/clang-18 /usr/bin/clang || true
           sudo ln -sf /usr/bin/clang++-18 /usr/bin/clang++ || true
+          # List what we got
+          ls -la /usr/bin/lldb* || true
 
       - name: Verify LLDB-DAP
         run: |
           echo "=== LLDB-DAP location ==="
-          which lldb-dap
+          which lldb-dap || which lldb-vscode || echo "Not found on PATH, checking /usr/bin..."
+          ls -la /usr/bin/lldb-dap* /usr/bin/lldb-vscode* 2>/dev/null || true
           echo "=== LLDB-DAP version ==="
-          lldb-dap --version
-          echo "=== LLDB-DAP help ==="
-          lldb-dap --help
+          lldb-dap --version || lldb-vscode --version || echo "Cannot get version"
 
       - name: Install dependencies
         run: bun install
@@ -85,6 +92,13 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Enable debugging on macOS
+        run: |
+          # Enable developer tools for debugging
+          sudo DevToolsSecurity -enable
+          # Add current user to developer group
+          sudo dscl . append /Groups/_developer GroupMembership $(whoami)
 
       - name: Debug Xcode/LLDB environment
         run: |

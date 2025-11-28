@@ -1,6 +1,13 @@
 import z from "zod";
 
 import { yamlContent, server, sessions } from "./server";
+import { OutputEventBody } from "../dap/types";
+
+interface LogEntry {
+  type: "stdout" | "stderr";
+  timestamp: number;
+  data: string;
+}
 
 server.tool(
   "debuggerLogs",
@@ -36,7 +43,27 @@ server.tool(
       );
     }
 
-    let logs = session.processLogs || [];
+    // Get process logs (stdout/stderr from the debugger process itself)
+    const processLogs: LogEntry[] = session.processLogs || [];
+
+    // Get DAP output events (program output for LLDB and other debuggers)
+    const dapEvents = session.readEvents(0, 100000).events;
+    const dapOutputLogs: LogEntry[] = dapEvents
+      .filter((e) => e.event === "output")
+      .map((e) => {
+        const body = e.body as OutputEventBody;
+        const category = body.category || "stdout";
+        return {
+          type: (category === "stderr" ? "stderr" : "stdout") as "stdout" | "stderr",
+          timestamp: e.timestamp,
+          data: body.output,
+        };
+      });
+
+    // Merge and sort by timestamp
+    let logs: LogEntry[] = [...processLogs, ...dapOutputLogs].sort(
+      (a, b) => a.timestamp - b.timestamp,
+    );
 
     // Filter by type if specified
     if (type !== "all") {
